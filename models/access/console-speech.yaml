@@ -1,0 +1,8 @@
+apiVersion: blunix.dev/v1
+kind: Access
+name: console-speech
+speech: true
+braille: true
+large_print: false
+show_status: false
+orca: never

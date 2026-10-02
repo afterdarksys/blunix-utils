@@ -1,0 +1,35 @@
+name: host tools and gitbuild
+
+on:
+  pull_request:
+    paths: ['lib/**', 'apply/**', 'tests/**', 'image/**', 'models/**', 'sync-to-dist.py', 'dist-map.json', '.github/workflows/host-tests.yml']
+  push:
+    branches: [main]
+    paths: ['lib/**', 'apply/**', 'tests/**', 'image/**', 'models/**', 'sync-to-dist.py', 'dist-map.json', '.github/workflows/host-tests.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  debian:
+    runs-on: ubuntu-latest
+    container: debian:trixie-slim
+    timeout-minutes: 25
+    steps:
+      - name: Install test and build tools
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq ca-certificates git python3 python3-yaml python3-pip \
+            age zstd e2fsprogs build-essential golang-go cargo rustc nodejs npm php-cli composer
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Generate local test fixtures
+        run: python3 image/prepare-secrets.py
+      - name: Host suite and offline builds in all six languages
+        env:
+          PYTHONPATH: lib
+          BLUNIX_TOOLCHAIN_TESTS: '1'
+        run: python3 -m unittest discover -s tests -v

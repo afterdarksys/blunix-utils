@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "mappings": [
+    {
+      "source": "lib/blunix",
+      "target": "lib/blunix"
+    },
+    {
+      "source": "apply",
+      "target": "apply"
+    },
+    {
+      "source": "models",
+      "target": "models"
+    },
+    {
+      "source": "image",
+      "target": "image"
+    },
+    {
+      "source": "tests",
+      "target": "tests"
+    },
+    {
+      "source": "docs/gitbuild.md",
+      "target": "docs/gitbuild.md"
+    },
+    {
+      "source": "docs/tooling-assessment.md",
+      "target": "docs/tooling-assessment.md"
+    },
+    {
+      "source": ".github/workflows/host-tests.yml",
+      "target": ".github/workflows/host-tests.yml"
+    },
+    {
+      "source": "docs/utilities-review.md",
+      "target": "docs/utilities-review.md"
+    }
+  ],
+  "exclude": [
+    "tests/test_sync.py"
+  ]
+}

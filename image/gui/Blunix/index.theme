@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=Blunix
+Comment=Blue-grey theme
+Encoding=UTF-8
+
+[X-GNOME-Metatheme]
+GtkTheme=Blunix
+IconTheme=Adwaita
+CursorTheme=Adwaita
+ButtonLayout=:close

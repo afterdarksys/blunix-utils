@@ -1,0 +1,5 @@
+apiVersion: blunix.dev/v1
+kind: AiTools
+name: default
+enabled: false
+tools: []

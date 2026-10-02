@@ -1,0 +1,19 @@
+[Unit]
+Description=Blunix installer on %I
+After=systemd-networkd.service systemd-resolved.service blunix-access.service systemd-user-sessions.service
+Wants=systemd-networkd.service systemd-resolved.service
+ConditionPathExists=/dev/%I
+
+[Service]
+Type=idle
+ExecStart=/usr/bin/blunix install
+StandardInput=tty
+StandardOutput=tty
+StandardError=journal
+TTYPath=/dev/%I
+TTYVHangup=yes
+Environment=PYTHONUNBUFFERED=1
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

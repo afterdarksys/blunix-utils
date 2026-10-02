@@ -1,0 +1,31 @@
+apiVersion: blunix.dev/v1
+kind: Disk
+name: cloud-vm
+partitions:
+  - name: esp
+    type: esp
+    size: "512M"
+    format: vfat
+  - name: root-a
+    type: root-x86-64
+    size: "2G"
+    format: erofs
+    verity: root-a-verity
+    read_only: true
+  - name: root-a-verity
+    type: root-x86-64-verity
+    size: "64M"
+  - name: root-b
+    type: root-x86-64
+    size: "2G"
+    format: erofs
+    verity: root-b-verity
+    read_only: true
+  - name: root-b-verity
+    type: root-x86-64-verity
+    size: "64M"
+  - name: var
+    type: var-x86-64
+    size: "1G"
+    format: ext4
+    weight: 1000

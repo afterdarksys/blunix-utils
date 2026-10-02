@@ -1,0 +1,7 @@
+apiVersion: blunix.dev/v1
+kind: Network
+name: dhcp-any
+dhcp: true
+match:
+  - en*
+  - eth*

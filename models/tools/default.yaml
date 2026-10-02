@@ -1,0 +1,16 @@
+apiVersion: blunix.dev/v1
+kind: GithubTools
+name: default
+tools:
+  # Optional. Tag v0.9.0 exists and no release asset is published, so this
+  # pin has no digest. The installer refuses it until a digest is written here.
+  - name: adssh
+    repo: adssh
+    version: v0.9.0
+    asset: adssh_v0.9.0_linux_amd64.tar.gz
+    default: false
+    files:
+      - archive: adssh_v0.9.0_linux_amd64/bin/adssh
+        dest: adssh
+      - archive: adssh_v0.9.0_linux_amd64/bin/adssh-mcp
+        dest: adssh-mcp

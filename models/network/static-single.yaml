@@ -1,0 +1,9 @@
+apiVersion: blunix.dev/v1
+kind: Network
+name: static-single
+match:
+  - en*
+address: 192.0.2.10/24
+gateway: 192.0.2.1
+dns:
+  - 192.0.2.53

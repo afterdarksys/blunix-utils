@@ -1,0 +1,15 @@
+[Unit]
+Description=Blunix access profile
+DefaultDependencies=no
+After=local-fs.target systemd-modules-load.service
+Before=getty.target blunix-bootstrap.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/blunix-access boot
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=sysinit.target

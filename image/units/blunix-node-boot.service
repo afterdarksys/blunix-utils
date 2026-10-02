@@ -1,0 +1,16 @@
+[Unit]
+Description=Blunix node network on boot
+DefaultDependencies=no
+Before=systemd-networkd.service
+After=local-fs.target
+ConditionPathExists=/var/lib/blunix/node.yaml
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/blunix-node boot
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=sysinit.target

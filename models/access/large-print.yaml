@@ -1,0 +1,8 @@
+apiVersion: blunix.dev/v1
+kind: Access
+name: large-print
+speech: false
+braille: false
+large_print: true
+show_status: false
+orca: never

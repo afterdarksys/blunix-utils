@@ -1,0 +1,8 @@
+apiVersion: blunix.dev/v1
+kind: Access
+name: full-speech
+speech: true
+braille: true
+large_print: false
+show_status: false
+orca: if-installed

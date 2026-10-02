@@ -1,0 +1,27 @@
+/* blunix-gui */
+@define-color window_bg_color #12161a;
+@define-color window_fg_color #f3efe6;
+@define-color view_bg_color #1b2127;
+@define-color view_fg_color #f3efe6;
+@define-color headerbar_bg_color #1b2127;
+@define-color headerbar_fg_color #f3efe6;
+@define-color accent_bg_color #1a4568;
+@define-color accent_fg_color #f3efe6;
+@define-color accent_color #8eb4d4;
+@define-color theme_bg_color #12161a;
+@define-color theme_fg_color #f3efe6;
+@define-color theme_base_color #1b2127;
+@define-color theme_text_color #f3efe6;
+@define-color theme_selected_bg_color #1a4568;
+@define-color theme_selected_fg_color #f3efe6;
+
+window,
+.background {
+  background-color: #12161a;
+  color: #f3efe6;
+}
+
+*:focus {
+  outline: 3px solid #d2ee9a;
+  outline-offset: 2px;
+}

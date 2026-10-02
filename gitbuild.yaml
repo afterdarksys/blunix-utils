@@ -1,0 +1,5 @@
+version: 1
+product: blunix-utils
+system: custom
+commands:
+  - [python3, scripts/package-utils.py]

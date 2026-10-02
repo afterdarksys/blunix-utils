@@ -1,0 +1,12 @@
+apiVersion: blunix.dev/v1
+kind: Node
+name: blunix-test
+hostname: blunix-test
+disk: cloud-vm
+network: dhcp-any
+access: regular
+ai: default
+update:
+  url: https://updates.blunix.io/blunix
+  channel: stable
+sysexts: []

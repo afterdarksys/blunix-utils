@@ -1,0 +1,16 @@
+[Unit]
+Description=Blunix first-boot bootstrap
+After=systemd-networkd.service open-vm-tools.service
+Wants=systemd-networkd.service
+ConditionPathExists=!/var/lib/blunix/bootstrap-complete
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/blunix-bootstrap
+StandardOutput=journal+console
+StandardError=journal+console
+TimeoutStartSec=240
+
+[Install]
+WantedBy=multi-user.target

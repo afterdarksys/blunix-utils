@@ -1,0 +1,365 @@
+{
+  "version": 1,
+  "files": {
+    "lib/blunix/bootstrap.py": {
+      "sha256": "3b671aa115b89eb7e10337176d4daefe12c107024058c0c790fe6d084a7dd09c",
+      "executable": false
+    },
+    "lib/blunix/age.py": {
+      "sha256": "797d7bbb702d26a0fbf7a9b15c634f01e8c601c15ea1ed71a27fbe19f055178a",
+      "executable": false
+    },
+    "lib/blunix/console.py": {
+      "sha256": "e39671541032695aba3d633db9922480f5f93c888b69fb57c3cde281b7b8960f",
+      "executable": false
+    },
+    "lib/blunix/disk.py": {
+      "sha256": "fa9a0615ec4e019d747f5db1fb0599c2423ca09404dbcd4f8b3950afe00ce5f0",
+      "executable": false
+    },
+    "lib/blunix/gitbuild.py": {
+      "sha256": "34955be7d22a7ca60cbd533629af6066792d2ab5a91aa951722f3457c5a2b3c7",
+      "executable": false
+    },
+    "lib/blunix/cmd.py": {
+      "sha256": "7c50622a04cacb0926b7e35de059801d4a4e5eb0727fea0ce7a4fe8a67ddb9ea",
+      "executable": false
+    },
+    "lib/blunix/proxy_config.py": {
+      "sha256": "8672ec39fd16a971c4e3bf3734d269e225fda1e5283911fd0defba9194fb447f",
+      "executable": false
+    },
+    "lib/blunix/proxy.py": {
+      "sha256": "3750466efc6568ec715e7cc333865381ac6be3f04a99dcf0bdd6a4cea9daec14",
+      "executable": false
+    },
+    "lib/blunix/tools.py": {
+      "sha256": "62fcf12c73a010b2c13bcce9b154a51616dc7c72ceda1f0b8833ea73acabd7f0",
+      "executable": false
+    },
+    "lib/blunix/ai.py": {
+      "sha256": "a693bae2747e7fad34d002ace942a8d199406c0553b654b991e241ebe292b788",
+      "executable": false
+    },
+    "lib/blunix/proxy_site.py": {
+      "sha256": "f8fb6d2588cafb2f6f6b621d02e9e1d0656cee3f8a72876b90523e09c5631382",
+      "executable": false
+    },
+    "lib/blunix/access.py": {
+      "sha256": "5136e7eb78fa8c4f0f63d7db897848a466ad3d723f72eb1bdb80fc84d69725ef",
+      "executable": false
+    },
+    "lib/blunix/__init__.py": {
+      "sha256": "d0fa555d82593379b11e82848e3a84310cfca850a7b37b90b9dc40dea49f1eca",
+      "executable": false
+    },
+    "lib/blunix/gitbuild_install.py": {
+      "sha256": "d775d3aebfc8bb62abb9bb8d9ff00b370b83902f5ed2ea96725058683be039de",
+      "executable": false
+    },
+    "lib/blunix/installer.py": {
+      "sha256": "dddc2f302e93acdd4f55822fc21490b71b446108453a765977c703a0182ae10c",
+      "executable": false
+    },
+    "lib/blunix/cli.py": {
+      "sha256": "063396c32d3ce1c5e9d50277d3057fe7293d28e2ca3c5f1232458c15890ce1fa",
+      "executable": false
+    },
+    "lib/blunix/network.py": {
+      "sha256": "0647c9b5c08e839da40fe9cc735ef17a9756d21848a48f1ea94264956bb34611",
+      "executable": false
+    },
+    "lib/blunix/proxy_boot.py": {
+      "sha256": "9e9a98fc5bbcf27c55df7e53faca225529beb168f09699187bbeea8dacb1e0e5",
+      "executable": false
+    },
+    "lib/blunix/errors.py": {
+      "sha256": "fb714d8dce037bca864f76c59d9a4bab3fcdaf32f2e7188e328e28882f722ec7",
+      "executable": false
+    },
+    "lib/blunix/node.py": {
+      "sha256": "02a904cfbaa4109dbdb55270011260266b5fb8d4c942d2b02900a8306daa674f",
+      "executable": false
+    },
+    "lib/blunix/proxy_serve.py": {
+      "sha256": "584c3643cacf50ee9faca393601f4c7c76a63c9e8caf22ab7f0e4b47b6db3aca",
+      "executable": false
+    },
+    "lib/blunix/gui.py": {
+      "sha256": "422e1fffee469c5a20c916075121ce442f996bf7984f79073090ea1e5479cd93",
+      "executable": false
+    },
+    "lib/blunix/__main__.py": {
+      "sha256": "cf585172e3ce075cc1b26aeb49840a9c53d8f78e9e812fb8081d45cbc4c44954",
+      "executable": false
+    },
+    "lib/blunix/keyfmt.py": {
+      "sha256": "89769a41efdd9c05e819c4c741a002c575adbd9e27ad2923205399024ba84aaa",
+      "executable": false
+    },
+    "lib/blunix/schema.py": {
+      "sha256": "e3f91f99b672d9f07dfbd1b25823f6d9bf60d63601e4b3eb72f464433745ff83",
+      "executable": false
+    },
+    "apply/blunix-disk": {
+      "sha256": "32f1f20ee13b6091d2b3101cdf7b6486db85bcff9372ed16d73c9f772ed3eea7",
+      "executable": true
+    },
+    "apply/blunix-ai": {
+      "sha256": "2442dbd2cb76786666924aaf5a04f90bdb3d1eff4290b9d45e3b437d8b3d174b",
+      "executable": true
+    },
+    "apply/blunix-net": {
+      "sha256": "22b54f658339f96deac3ae3438ff1067061ef0d04f258a0fda419e3019ad2f79",
+      "executable": true
+    },
+    "apply/blunix-node": {
+      "sha256": "6ed4353b360bee5024e521ba9922d8f4cb81c9503a5f6fa15d7b6003b0703272",
+      "executable": true
+    },
+    "apply/blunix-access": {
+      "sha256": "7d6330eb547b53ca691ec6a344b0a09df6f9633a42b3a603f0ee95cebc6455c8",
+      "executable": true
+    },
+    "apply/blunix-bootstrap": {
+      "sha256": "0dd397fe688579e8bd00db6dff866604779c18e16b313b37cc8b2e3911a35ceb",
+      "executable": true
+    },
+    "apply/gitbuild": {
+      "sha256": "2ad036acf52f673dc99b3a80e1388036777c1d6390a52cbaa3978915f6ca9913",
+      "executable": true
+    },
+    "apply/blunix": {
+      "sha256": "a79b8591f763f55926b1e6f94b7d54669c0107c63fbf9f02f852d1f9b5b47fb8",
+      "executable": true
+    },
+    "models/tools/default.yaml": {
+      "sha256": "223eb95114f1e523909229d9fb6a90509c4ffd520f37c175f249cafaf30d090c",
+      "executable": false
+    },
+    "models/access/console-speech.yaml": {
+      "sha256": "201a1d623646991f0a22abf2feda8a8bf6d598e16800efa60e0db5b2c3830ed8",
+      "executable": false
+    },
+    "models/access/full-speech.yaml": {
+      "sha256": "6a07de3e628a4d1133f1698b36a4bb2301d16242f7af1165615110a6a6cbe82b",
+      "executable": false
+    },
+    "models/access/advanced.yaml": {
+      "sha256": "90ce50506fb084d4d89208c6e4df70cda21a82515e0bb961f1a38c2985fccef1",
+      "executable": false
+    },
+    "models/access/large-print.yaml": {
+      "sha256": "4f292b05f73fa0d307c811760d4202470edfe18604c2cf02dd477b64cfaf8810",
+      "executable": false
+    },
+    "models/access/regular.yaml": {
+      "sha256": "31f4d34c56d716ef4433fcb5932b6b4e4cdea5635e8ecbb3af6da1aae8a74a93",
+      "executable": false
+    },
+    "models/network/dhcp-any.yaml": {
+      "sha256": "d8a6a3bec9571ccb2a5d9ca7840c167293ca9cbc22a0b0f400461a2c01b51d99",
+      "executable": false
+    },
+    "models/network/static-single.yaml": {
+      "sha256": "fef6faff0bd816d4b0c2b3b444ce5297f1f12e5bd16cad0b176a5ce6df32d197",
+      "executable": false
+    },
+    "models/ai/default.yaml": {
+      "sha256": "62d951fb3f37eec812c43aaa50dce7a392d25082113e2ddb3077e12b06e1f0fb",
+      "executable": false
+    },
+    "models/disk/metal-luks.yaml": {
+      "sha256": "ac3b707c64a93c57c2e0ce3213dea86470a1c1bb99a685990adebdc05967c177",
+      "executable": false
+    },
+    "models/disk/cloud-vm.yaml": {
+      "sha256": "555d931f2dce80abed9c03bfe148785f5c2bde0d18e556fc8076af91bff44609",
+      "executable": false
+    },
+    "models/node/vmware-test.yaml": {
+      "sha256": "c15499c8b1474044fef2a62c2fd3643863272f97cd041b927aaf31116ca4e669",
+      "executable": false
+    },
+    "image/build-test-disk.sh": {
+      "sha256": "b64fc9e233198d554c981ce4d07881ab05c7e00b1c08e9c19df7d8b5a4d580b2",
+      "executable": true
+    },
+    "image/redact-serial.py": {
+      "sha256": "d83f20025a52c66f13f84ab89fd9eca97d2d8202c4471ac61eb8c63a01f34cbe",
+      "executable": true
+    },
+    "image/prepare-secrets.py": {
+      "sha256": "1d1a142cd7ee93a2639db40a782ff5f948b4b5c517cde013f42fc75a2f83f71c",
+      "executable": true
+    },
+    "image/scan-root.py": {
+      "sha256": "813ad43c7f2c60528124af84d330f0239328c5dcca5f2b7b86e2df2ee68a4db3",
+      "executable": true
+    },
+    "image/scan-raw.py": {
+      "sha256": "db1b1ed80575d7bb10e91ccba9add98ec98f3c699fe298939080198fd9faa8f6",
+      "executable": true
+    },
+    "image/seal-root.py": {
+      "sha256": "cb1a8c182bf67e38fe488766fe290c3482f85c59db44a259c0ae53aa60a13013",
+      "executable": true
+    },
+    "image/README.md": {
+      "sha256": "aed17ba7b986dafcb27f976153eaf3ebfe080ea99606a173afa65db225afe07b",
+      "executable": false
+    },
+    "image/gpl-sources.py": {
+      "sha256": "52537ccea7561e34d1a0536b782d143a8a9df63a88f0b76aa27e200c88504508",
+      "executable": false
+    },
+    "image/boot-installer-test.sh": {
+      "sha256": "da32f42aa620cc568ee422188571e9b77d92e16610dbd32374a27858311073a3",
+      "executable": true
+    },
+    "image/write-vmx.py": {
+      "sha256": "1766484d1c01d049294a9edf09290ea726e1a6c0dc3af75875713e7d90c91d13",
+      "executable": true
+    },
+    "image/packages.txt": {
+      "sha256": "7e28515fb2911832a5a98c65c5514ea2d476cb5ad64c0f1ae126f015ee53dd8f",
+      "executable": false
+    },
+    "image/build-installer.sh": {
+      "sha256": "d6a0dc39fe2abe8847bd954b13ad7a694655321b065e0add31ac3fa399e12655",
+      "executable": true
+    },
+    "image/run-unit-tests.sh": {
+      "sha256": "f83ca2dc04d5c96ed8e681cef9f425c837b1f05e05a979989b4b1a188af8a26a",
+      "executable": true
+    },
+    "image/boot-vmware.sh": {
+      "sha256": "36f4e6511debdc1e6ca5e9ad2d61ab550ce9e90d541f586e0badcd2462431b00",
+      "executable": true
+    },
+    "image/ipxe/blunix.ipxe": {
+      "sha256": "1ed0e79c1fdabc4298155090a4ed801a6d24373a49ef0f96b56e34daf6a904d7",
+      "executable": false
+    },
+    "image/test/sshd-test.conf": {
+      "sha256": "7b4dd804fce6dab8b07623be6911d4d886314baf1782386bb66fc5b0384c9066",
+      "executable": false
+    },
+    "image/test/ssh-hostkeys.conf": {
+      "sha256": "4a53e20026a16b6c91573b5a61d374fccdf384d1fb7aa25d9b7943ed7d3d7898",
+      "executable": false
+    },
+    "image/release/RELEASE-NOTES.md": {
+      "sha256": "4f2c8ed483aa4cec2f0b77af8da605cb65a84c4e36837316069a6244a05c97b3",
+      "executable": false
+    },
+    "image/release/bootstrap-console.conf": {
+      "sha256": "bbc0f70da9b976e2f109cc98aa86cc876691889f82221995082dd78daa1965e9",
+      "executable": false
+    },
+    "image/units/blunix-access.service": {
+      "sha256": "0b69d4757b8245a6fd3a37533f9ea7e048358d506da9fbb027797fc482652640",
+      "executable": false
+    },
+    "image/units/blunix-bootstrap.service": {
+      "sha256": "efdbff62e194c3b92e413b9eba4c08b4b9806d4b31db770375d79c6f348d36af",
+      "executable": false
+    },
+    "image/units/blunix-node-boot.service": {
+      "sha256": "fcdce4e4930a6fb73a91b334320109457435bbc6ad60927d0fda89c89edd372a",
+      "executable": false
+    },
+    "image/grub/grub.cfg": {
+      "sha256": "36a8ccc24bfd8d497a42f871c5ec830a8e977e26fb31cb6a229d49eeed36b8e9",
+      "executable": false
+    },
+    "image/mkosi/mkosi.conf": {
+      "sha256": "1fd2d20b9120f303d8fcf89bcc4164f5825081c6a6a9ed54505b27fff8186b12",
+      "executable": false
+    },
+    "image/gui/Blunix/index.theme": {
+      "sha256": "97d7568e5ac54626a6bb134f05ca463c8f1479d8df3870bdae633bb94c6badb9",
+      "executable": false
+    },
+    "image/gui/Blunix/gtk-4.0/gtk.css": {
+      "sha256": "adb34002ba14d9ae045978c936eb9c1d5d4f56782e77a0a9594ec4ec3d3a7dc7",
+      "executable": false
+    },
+    "image/gui/Blunix/gtk-3.0/gtk.css": {
+      "sha256": "adb34002ba14d9ae045978c936eb9c1d5d4f56782e77a0a9594ec4ec3d3a7dc7",
+      "executable": false
+    },
+    "image/installer/drive-serial.py": {
+      "sha256": "5a31b6f531febe471739a2d8b45c123b34bdcb71b4a6956db0efbc253dd5588e",
+      "executable": true
+    },
+    "image/installer/blunix-install@.service": {
+      "sha256": "3ed0b2e7fdf1a1a51a7bc24c2e41da67c891fa6efcda97fb25c0e342619311ad",
+      "executable": false
+    },
+    "image/installer/packages.txt": {
+      "sha256": "b366faf358eedb7097313a36abc80eb84e2b61b96782aff582440b2e791cb374",
+      "executable": false
+    },
+    "image/installer/grub.cfg": {
+      "sha256": "4044148bbcbe8e2426246826b8b5affa6ebeac3490294571a9ea500cdde1813d",
+      "executable": false
+    },
+    "tests/test_redact_serial.py": {
+      "sha256": "51dae5e68e6199544d20a5ad30ac3463479a00b5ae6669151d75972f73430683",
+      "executable": false
+    },
+    "tests/test_gitbuild_toolchains.py": {
+      "sha256": "f25f4addb819db0accf2ef32d28f213bf8a2533207114269f731b190e4435e5c",
+      "executable": false
+    },
+    "tests/test_installer.py": {
+      "sha256": "591eaacdbcef6726f802b5423c2fc474a05d68f99829f39480cbc32f1cc4e85a",
+      "executable": false
+    },
+    "tests/test_blunix.py": {
+      "sha256": "7b9bff468660bb3a0f1edd53f608e8c85f3e74eed381e6c56221158814490fff",
+      "executable": false
+    },
+    "tests/test_image_scripts.py": {
+      "sha256": "9230629f68ff1ceb3245b141fa033c6ece1f03280c841d67451fc60c5c23521c",
+      "executable": false
+    },
+    "tests/test_gitbuild.py": {
+      "sha256": "cd0085698e4e6fa2fa6961265d4c4a93cd51868e369cf8428f616864e449e48d",
+      "executable": false
+    },
+    "tests/test_scan_raw.py": {
+      "sha256": "00204713daa6f6a84832bebd7b619b2a2ba869cff37dbde4ff4970afd5ba9c9b",
+      "executable": false
+    },
+    "tests/test_proxy.py": {
+      "sha256": "83960606ed133de20e6546f41f7250ccddc2109c4be7263c452ae4f92684a824",
+      "executable": false
+    },
+    "tests/test_gpl_sources.py": {
+      "sha256": "c1023287a48843b46289cd8b092c2fc6e51ea0027366437b85b5ff89e5901d14",
+      "executable": false
+    },
+    "tests/test_scan_root.py": {
+      "sha256": "049903b8b4b78e8245daa2dc2deb32f48957a097b8cd5de031d200ebde930804",
+      "executable": false
+    },
+    "tests/test_https_openers.py": {
+      "sha256": "ba68be120564a3e9f18f0fd2cf5b4b1aea8146fa793358b3e2427dcedcea5434",
+      "executable": false
+    },
+    "docs/gitbuild.md": {
+      "sha256": "101fd48e9154be24e9755f8ef818bd25d29efb900bf4eb415d28bf6a0965b8bc",
+      "executable": false
+    },
+    "docs/tooling-assessment.md": {
+      "sha256": "859a61782961aa2c0277b22c10ec25d9b342e71a0a5ff112d48cf09e0ba321e9",
+      "executable": false
+    },
+    ".github/workflows/host-tests.yml": {
+      "sha256": "d42e71202194e1a332120ddacc657f8c3e9785deaf35112addcfc3d7aa6f0cc4",
+      "executable": false
+    }
+  }
+}

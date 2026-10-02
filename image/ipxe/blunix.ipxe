@@ -1,0 +1,17 @@
+#!ipxe
+# Netboot the Blunix live installer.
+# Set ${proxy} to HOST:PORT of a blunix build-proxy (or any HTTP server that
+# serves build/installer/media/ under /media/). `blunix proxy serve` renders
+# an equivalent script at /v1/boot.ipxe.
+# The image to install is inside blunix.squashfs, so netboot needs no stick.
+# live-boot copies the squashfs into RAM: give the machine 2 GiB or more.
+# Netboot is for trusted LANs only until images are signed. The kernel,
+# initrd and squashfs come over plain http with no digest check here: iPXE
+# checks an image only with imgverify, which needs a signature and a trusted
+# certificate built into iPXE, and live-boot fetches the squashfs itself.
+# Their sha256 values are in the release's SHA256SUMS.
+isset ${proxy} || set proxy ${next-server}:8750
+echo blunix: netboot from ${proxy}
+kernel http://${proxy}/media/vmlinuz initrd=initrd.img boot=live noeject fetch=http://${proxy}/media/blunix.squashfs blunix.proxy=${proxy} blunix.access=regular console=tty0 console=ttyS0,115200
+initrd http://${proxy}/media/initrd.img
+boot
