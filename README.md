@@ -17,6 +17,21 @@ synced into the distribution's existing `image/` paths so image builds retain
 their current layout. `build/` contains only local artifacts and test fixtures;
 it is never copied by the sync script.
 
+## Get started
+
+Repository: [afterdarksys/blunix-utils](https://github.com/afterdarksys/blunix-utils).
+
+```sh
+git clone https://github.com/afterdarksys/blunix-utils.git
+cd blunix-utils
+# Requires Python 3.9+ and PyYAML.
+./apply/blunix doctor
+./apply/gitbuild --help
+```
+
+Keep the distribution checkout at `../blunix` for the default sync workflow,
+or pass `--dist /path/to/blunix` to `sync-to-dist.py`.
+
 ## Tools
 
 - `apply/blunix`: installer/bootstrap, accessibility, network, node and disk model helpers.
@@ -43,9 +58,8 @@ following them outside a mounted image.
 ## Standalone packaging
 
 `gitbuild.yaml` stages runtime modules, models, theme assets and relocatable
-launchers under the `blunix-utils` product prefix. It can be prepared with
-Gitbuild once this repository is hosted in an allowed owner namespace. The
-installed runtime requires Python 3.9+ and PyYAML; `age` and Linux system tools
+launchers under the `blunix-utils` product prefix. Prepare `afterdarksys/blunix-utils` with Gitbuild at an explicit tag or commit.
+The installed runtime requires Python 3.9+ and PyYAML; `age` and Linux system tools
 are required by their respective commands. Image builders remain source-tree
 utilities and are distributed through the sync map.
 
