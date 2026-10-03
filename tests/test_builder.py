@@ -685,5 +685,53 @@ class PackageTests(unittest.TestCase):
         self.assertIn(TRUSTED, example)
 
 
+class DoorTests(unittest.TestCase):
+    """The door addresses stay out of this public repo; check-door.sh gates
+    the host-local door.nft that nftables.conf includes verbatim."""
+
+    def check(self, text, symlink=False):
+        with tempfile.TemporaryDirectory() as d:
+            real = Path(d) / "real.nft"
+            real.write_text(text)
+            path = real
+            if symlink:
+                path = Path(d) / "door.nft"
+                path.symlink_to(real)
+            return subprocess.run(
+                ["bash", str(ROOT / "builder" / "check-door.sh"), str(path)],
+                capture_output=True, text=True)
+
+    def test_accepts_one_define_of_plain_addresses(self):
+        r = self.check("# door\n\ndefine DOOR_V4 = { 203.0.113.7, 198.51.100.20 }\n")
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_rejects_bad_door_files(self):
+        cases = {
+            "placeholder": "define DOOR_V4 = { 192.0.2.1 }\n",
+            "prefix": "define DOOR_V4 = { 203.0.113.0/24 }\n",
+            "octet": "define DOOR_V4 = { 203.0.113.256 }\n",
+            "loopback": "define DOOR_V4 = { 127.0.0.1 }\n",
+            "any": "define DOOR_V4 = { 0.0.0.0 }\n",
+            "empty": "# nothing\n",
+            "two defines": "define DOOR_V4 = { 203.0.113.7 }\ndefine DOOR_V4 = { 203.0.113.8 }\n",
+            "extra rule": "define DOOR_V4 = { 203.0.113.7 }\ntable inet x { }\n",
+            "trailing junk": "define DOOR_V4 = { 203.0.113.7 } ; flush ruleset\n",
+        }
+        for name, text in cases.items():
+            with self.subTest(name):
+                self.assertNotEqual(self.check(text).returncode, 0)
+
+    def test_rejects_symlink(self):
+        r = self.check("define DOOR_V4 = { 203.0.113.7 }\n", symlink=True)
+        self.assertNotEqual(r.returncode, 0)
+
+    def test_public_ruleset_carries_no_addresses(self):
+        conf = (ROOT / "builder" / "nftables.conf").read_text()
+        self.assertIn('include "/etc/blunix-builder/door.nft"', conf)
+        self.assertIn("elements = $DOOR_V4", conf)
+        rules = "\n".join(l for l in conf.splitlines() if not l.lstrip().startswith("#"))
+        self.assertNotRegex(rules, r"\b\d{1,3}(\.\d{1,3}){3}\b")
+
+
 if __name__ == "__main__":
     unittest.main()

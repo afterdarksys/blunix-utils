@@ -6,7 +6,7 @@ set -eu
 set -o pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 cd "$HERE"
-FILES="blunix-builder blunix_builder.py inside-release.sh install.sh config.example.yaml
+FILES="blunix-builder blunix_builder.py inside-release.sh install.sh check-door.sh config.example.yaml
 nftables.conf HOST.md NOTES-blunix.md keys/tag-signers.asc
 systemd/blunix-builder.service systemd/blunix-builder.timer"
 # shellcheck disable=SC2086

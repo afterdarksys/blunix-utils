@@ -3,7 +3,8 @@
 # the extracted package directory (the one holding MANIFEST.sha256):
 #
 #   bash install.sh                    # install/update files, user, dirs, units
-#   bash install.sh --apply-firewall   # also load nftables.conf (door IPs set)
+#   bash install.sh --apply-firewall   # also load nftables.conf; needs
+#                                      # /etc/blunix-builder/door.nft
 #
 # It verifies every packaged file against MANIFEST.sha256 before touching the
 # host, refuses symlinks, never writes a secret, and never overwrites an
@@ -75,6 +76,7 @@ install -m 0644 -o root -g root blunix_builder.py /opt/blunix-builder/lib/blunix
 install -m 0644 -o root -g root inside-release.sh /opt/blunix-builder/lib/inside-release.sh
 install -m 0644 -o root -g root keys/tag-signers.asc /opt/blunix-builder/keys/tag-signers.asc
 install -m 0644 -o root -g root HOST.md /opt/blunix-builder/HOST.md
+install -m 0755 -o root -g root check-door.sh /opt/blunix-builder/bin/check-door.sh
 install -m 0644 -o root -g root MANIFEST.sha256 /opt/blunix-builder/MANIFEST.sha256
 install -m 0644 -o root -g root config.example.yaml /etc/blunix-builder/config.example.yaml
 install -m 0644 -o root -g root nftables.conf /etc/blunix-builder/nftables.conf
@@ -95,9 +97,10 @@ fi
 
 if [ "$APPLY_FW" -eq 1 ]; then
   echo "install: firewall"
-  if grep -q '192\.0\.2\.1' /etc/blunix-builder/nftables.conf; then
-    fail "nftables.conf still has the placeholder door address"
-  fi
+  door=/etc/blunix-builder/door.nft
+  [ "$(stat -c '%u' "$door" 2>/dev/null)" = 0 ] || fail "$door missing or not root-owned"
+  case "$(stat -c '%a' "$door")" in ?[0-7][2367]|?[2367]?) fail "$door is group/world writable" ;; esac
+  bash "$PKG/check-door.sh" "$door" || fail "door.nft rejected"
   nft -c -f /etc/blunix-builder/nftables.conf
   nft -f /etc/blunix-builder/nftables.conf
 fi

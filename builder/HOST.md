@@ -55,10 +55,21 @@ table, `inet blunix_host`, and leaves Docker's own tables alone:
 - forward (bridge `br-blunix`, the `blunix-build` Docker network): DNS, 80 and
   443 only. Everything else from build containers is dropped.
 
-Set the real door addresses in `door_v4` (the file ships with the
-documentation address `192.0.2.1`), then `bash install.sh --apply-firewall`.
-It runs `nft -c` before loading and refuses the placeholder. Apply it over a
-session you can recover (DartNode console) the first time.
+The door addresses are admin IPs and this repo is public, so they are not
+in `nftables.conf`. It includes `/etc/blunix-builder/door.nft`, which comes
+from the private vpscfgfarm repo (pushed through the door, root 0644) and
+holds exactly one line:
+
+```
+define DOOR_V4 = { a.b.c.d, e.f.g.h }
+```
+
+Then `bash install.sh --apply-firewall`. It refuses a door.nft that is missing,
+not root-owned, group/world writable, or anything but that one define of plain
+IPv4 addresses (`check-door.sh`), then runs `nft -c` before loading. Keep a
+second, stable fleet address in the set as a jump host so a changed home IP
+is not a lockout, and apply it the first time over a session you can recover
+(DartNode console).
 
 ## Unattended upgrades
 
