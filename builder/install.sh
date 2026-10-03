@@ -48,6 +48,10 @@ mountpoint -q /srv || fail "/srv is not a mount; set up the data disk first (HOS
 [ "$(findmnt -n -o SOURCE /srv)" != "$(findmnt -n -o SOURCE /)" ] \
   || fail "/srv is on the root disk"
 install -d -m 0710 -o root -g root /srv/docker
+install -d -m 0755 -o root -g root /etc/systemd/system/docker.service.d
+install -m 0644 -o root -g root systemd/docker-wait-for-srv.conf \
+  /etc/systemd/system/docker.service.d/blunix-wait-for-srv.conf
+systemctl daemon-reload
 install -d -m 0755 -o root -g root /etc/docker
 if [ ! -e /etc/docker/daemon.json ]; then
   printf '{\n  "data-root": "/srv/docker"\n}\n' > /etc/docker/daemon.json

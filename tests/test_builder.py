@@ -746,6 +746,14 @@ class DataDiskTests(unittest.TestCase):
         self.assertIn('/srv is on the root disk', sh)
 
 
+    def test_docker_waits_for_the_data_disk(self):
+        sh = (ROOT / "builder" / "install.sh").read_text()
+        dropin = sh.index("/etc/systemd/system/docker.service.d/blunix-wait-for-srv.conf")
+        self.assertLess(dropin, sh.index('echo "install: packages"'))
+        conf = (ROOT / "builder" / "systemd" / "docker-wait-for-srv.conf").read_text()
+        self.assertIn("RequiresMountsFor=/srv/docker", conf)
+        self.assertIn("systemd/docker-wait-for-srv.conf", (ROOT / "builder" / "MANIFEST.sha256").read_text())
+
     def test_firewall_is_reloaded_at_boot(self):
         sh = (ROOT / "builder" / "install.sh").read_text()
         fw = sh[sh.index('if [ "$APPLY_FW" -eq 1 ]'):]
