@@ -87,6 +87,11 @@ second, stable fleet address in the set as a jump host so a changed home IP
 is not a lockout, and apply it the first time over a session you can recover
 (DartNode console).
 
+`--apply-firewall` also enables `blunix-firewall.service`, which re-validates
+door.nft and reloads the same ruleset at every boot, before networking and
+Docker start. Without it the table is gone after a reboot. If the unit fails
+it shows in `systemctl --failed` (and `vpsexec check failed`).
+
 ## Unattended upgrades
 
 DECISION (Ryan): security updates only, **no automatic reboot**, so a kernel

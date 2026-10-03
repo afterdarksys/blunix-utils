@@ -746,5 +746,18 @@ class DataDiskTests(unittest.TestCase):
         self.assertIn('/srv is on the root disk', sh)
 
 
+    def test_firewall_is_reloaded_at_boot(self):
+        sh = (ROOT / "builder" / "install.sh").read_text()
+        fw = sh[sh.index('if [ "$APPLY_FW" -eq 1 ]'):]
+        fw = fw[:fw.index("\nfi\n")]
+        self.assertIn("systemctl enable blunix-firewall.service", fw)
+        unit = (ROOT / "builder" / "systemd" / "blunix-firewall.service").read_text()
+        self.assertIn("ExecStartPre=/opt/blunix-builder/bin/check-door.sh /etc/blunix-builder/door.nft", unit)
+        self.assertIn("Before=network-pre.target docker.service", unit)
+        self.assertIn("WantedBy=sysinit.target", unit)
+        manifest = (ROOT / "builder" / "MANIFEST.sha256").read_text()
+        self.assertIn("systemd/blunix-firewall.service", manifest)
+
+
 if __name__ == "__main__":
     unittest.main()

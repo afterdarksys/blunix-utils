@@ -121,6 +121,11 @@ if [ "$APPLY_FW" -eq 1 ]; then
   bash "$PKG/check-door.sh" "$door" || fail "door.nft rejected"
   nft -c -f /etc/blunix-builder/nftables.conf
   nft -f /etc/blunix-builder/nftables.conf
+  # Reload the same ruleset at every boot, before networking and Docker.
+  install -m 0644 -o root -g root systemd/blunix-firewall.service \
+    /etc/systemd/system/blunix-firewall.service
+  systemctl daemon-reload
+  systemctl enable blunix-firewall.service
 fi
 
 systemctl daemon-reload
