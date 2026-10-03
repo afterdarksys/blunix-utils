@@ -173,9 +173,30 @@ def _install(rest, opts):
     return run_install(models=opts.get("models"))
 
 
+USAGE = """usage: blunix COMMAND
+  doctor [--root ROOT]                executables available and filesystem capacity
+  security audit [--root ROOT]        protected-path ownership and permission checks
+  integrity check [PRODUCT] [--root ROOT]
+                                      Gitbuild file and link drift
+  admin status                        selected systemd service states
+  disk inspect                        read-only block device and mount metadata
+  support collect --output FILE [--root ROOT]
+                                      mode-0600 JSON report, no secrets, logs or addresses
+  proxy help                          build-proxy for static-address and netboot LANs
+  gitbuild --help                     source builds and installed product checks
+  disk check|render, net render, access boot|render, ai apply, gui apply,
+  tools apply, node apply|boot        image and installer steps (see blunix.io/tools)
+With no command, blunix runs the installer bootstrap."""
+
+
 def _dispatch(argv):
     if any(arg == "--passphrase" or arg.startswith("--passphrase=") for arg in argv):
         raise BlunixError("refused command")
+    # Help is a fixed text: it reads nothing and runs nothing. Bare `blunix` stays
+    # the installer bootstrap, which the image depends on.
+    if argv and argv[0] in ("help", "-h", "--help"):
+        print(USAGE, flush=True)
+        return 0
     if argv and argv[0] == "proxy":
         return _proxy(argv[1:])
     if argv and argv[0] == "gitbuild":

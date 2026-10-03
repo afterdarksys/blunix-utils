@@ -69,5 +69,44 @@ class OpsTests(unittest.TestCase):
             self.assertEqual(ops.disks()["status"], "error")
 
 
+    def test_old_lsblk_falls_back_to_mountpoint_with_the_same_shape(self):
+        old = '{"blockdevices": [{"kname": "sda", "mountpoint": null, "children": [{"kname": "sda1", "mountpoint": "/"}]}]}'
+        with patch(
+            "blunix.ops.command",
+            side_effect=[{"status": "error", "tool": "lsblk"}, {"status": "ok", "output": old}],
+        ) as cmd:
+            devices = ops.disks()["devices"]
+        self.assertEqual(cmd.call_args_list[0][0][0][-1].split(",")[-1], "MOUNTPOINTS")
+        self.assertEqual(cmd.call_args_list[1][0][0][-1].split(",")[-1], "MOUNTPOINT")
+        self.assertEqual(devices[0]["mountpoints"], [None])
+        self.assertEqual(devices[0]["children"][0]["mountpoints"], ["/"])
+        self.assertNotIn("mountpoint", devices[0]["children"][0])
+        with patch("blunix.ops.command", return_value={"status": "error", "tool": "lsblk"}):
+            self.assertEqual(ops.disks()["status"], "error")
+
+    def test_unreadable_protected_path_is_a_finding_not_a_crash(self):
+        real = Path.is_symlink
+
+        def denied(path):
+            if path.name == "root":
+                raise PermissionError(13, "Permission denied")
+            return real(path)
+
+        with patch.object(Path, "is_symlink", denied):
+            result = ops.security(self.root)
+            self.assertIn({"path": "/root/.ssh", "issue": "unreadable metadata"}, result["findings"])
+            self.assertEqual(result["status"], "findings")
+            out = self.root / "support.json"
+            self.assertEqual(ops.support(self.root, out)["status"], "ok")
+
+    def test_help_prints_usage_and_runs_nothing(self):
+        for arg in ("--help", "-h", "help"):
+            buf = io.StringIO()
+            with patch("blunix.cli.run_bootstrap") as boot, contextlib.redirect_stdout(buf):
+                self.assertEqual(main([arg]), 0)
+            boot.assert_not_called()
+            self.assertIn("usage: blunix", buf.getvalue())
+            self.assertIn("security audit", buf.getvalue())
+
 if __name__ == "__main__":
     unittest.main()

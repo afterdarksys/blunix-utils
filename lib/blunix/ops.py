@@ -79,7 +79,14 @@ def security(root):
         unsafe = False
         for part in name.split("/"):
             path /= part
-            if path.is_symlink():
+            try:
+                link = path.is_symlink()
+            except OSError:
+                # e.g. EACCES on /root/.ssh as a non-root user: say so, fail closed.
+                findings.append({"path": "/" + name, "issue": "unreadable metadata"})
+                unsafe = True
+                break
+            if link:
                 findings.append(
                     {"path": "/" + name, "issue": "symlink in protected path"}
                 )
@@ -129,19 +136,34 @@ def integrity(root, product=None):
     }
 
 
+_LSBLK = ["lsblk", "--json", "--bytes", "--output"]
+
+
+def _with_mountpoints(dev):
+    # Old lsblk: one "mountpoint" string. New lsblk: a "mountpoints" list.
+    dev = dict(dev)
+    dev["mountpoints"] = [dev.pop("mountpoint", None)]
+    if isinstance(dev.get("children"), list):
+        dev["children"] = [_with_mountpoints(c) for c in dev["children"]]
+    return dev
+
+
 def disks():
-    result = command(
-        ["lsblk", "--json", "--bytes", "--output", "KNAME,TYPE,SIZE,RO,RM,MOUNTPOINTS"]
-    )
-    if result["status"] == "ok":
-        try:
-            return {
-                "status": "ok",
-                "devices": json.loads(result["output"])["blockdevices"],
-            }
-        except (ValueError, KeyError):
-            return {"status": "error", "tool": "lsblk"}
-    return result
+    # MOUNTPOINTS needs util-linux 2.37 (Debian 12). Debian 10 and 11 refuse it, so
+    # fall back to MOUNTPOINT and report the same shape either way.
+    result = command(_LSBLK + ["KNAME,TYPE,SIZE,RO,RM,MOUNTPOINTS"])
+    legacy = result["status"] == "error"
+    if legacy:
+        result = command(_LSBLK + ["KNAME,TYPE,SIZE,RO,RM,MOUNTPOINT"])
+    if result["status"] != "ok":
+        return result
+    try:
+        devices = json.loads(result["output"])["blockdevices"]
+        if legacy:
+            devices = [_with_mountpoints(d) for d in devices]
+        return {"status": "ok", "devices": devices}
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return {"status": "error", "tool": "lsblk"}
 
 
 def admin():
