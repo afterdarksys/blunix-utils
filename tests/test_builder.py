@@ -751,6 +751,7 @@ class DataDiskTests(unittest.TestCase):
         refuse = sh.index('if [ -e /src/build ]; then')
         made = sh.index("mkdir /src/build\n")
         secrets = sh.index("python3 /src/image/prepare-secrets.py")
+        self.assertLess(sh.index("apt-get install -y -qq python3"), secrets)
         disk = sh.index("bash /src/image/build-test-disk.sh --inside --release")
         self.assertLess(refuse, made)
         self.assertLess(made, secrets)

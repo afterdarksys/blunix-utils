@@ -63,6 +63,11 @@ trap handback EXIT
 # must exist even though a release image locks root and never contains them.
 # They stay 0600 in build/, outside build/release/, which is all that is staged.
 mkdir /src/build
+# The pinned image is debian:trixie-slim, which has no python3 until the build
+# script installs its packages; prepare-secrets.py needs it now.
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq
+apt-get install -y -qq python3 >/dev/null
 python3 /src/image/prepare-secrets.py
 
 echo "blunix-builder: disk"
