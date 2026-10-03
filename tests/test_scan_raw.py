@@ -150,12 +150,16 @@ class ScanRawTests(unittest.TestCase):
 
     def test_unreadable_input_fails_closed(self):
         with tempfile.TemporaryDirectory() as folder:
-            self.assertEqual(self._run(os.path.join(folder, "missing.raw")), (1, "blunix: scan failed"))
+            code, err = self._run(os.path.join(folder, "missing.raw"))
+            self.assertEqual(code, 1)
+            self.assertTrue(err.startswith("blunix: scan failed"), err)
             if HAVE_ZSTD:
                 bad = os.path.join(folder, "bad.raw.zst")
                 with open(bad, "wb") as handle:
                     handle.write(b"\x28\xb5\x2f\xfd" + os.urandom(64))
-                self.assertEqual(self._run(bad), (1, "blunix: scan failed"))
+                code, err = self._run(bad)
+                self.assertEqual(code, 1)
+                self.assertTrue(err.startswith("blunix: scan failed"), err)
 
 
 if __name__ == "__main__":

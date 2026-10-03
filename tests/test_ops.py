@@ -108,5 +108,10 @@ class OpsTests(unittest.TestCase):
             self.assertIn("usage: blunix", buf.getvalue())
             self.assertIn("security audit", buf.getvalue())
 
+    def test_missing_product_says_why(self):
+        report = ops.integrity(self.root, "not-a-product")
+        self.assertEqual(report["status"], "findings")
+        self.assertEqual(report["products"][0]["reason"], "gitbuild: product is not installed")
+
 if __name__ == "__main__":
     unittest.main()

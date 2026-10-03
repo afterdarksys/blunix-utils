@@ -429,13 +429,13 @@ def main(argv=None):
         "--manifest",
         help="local recipe override for repositories without gitbuild.yaml",
     )
-    add = sub.add_parser("install")
+    add = sub.add_parser("install", help="install a prepared bundle and record its file baseline")
     add.add_argument("bundle")
-    rm = sub.add_parser("remove")
+    rm = sub.add_parser("remove", help="remove an installed product")
     rm.add_argument("product")
     rm.add_argument("--purge", action="store_true", help="also delete configuration")
-    ls = sub.add_parser("list")
-    check = sub.add_parser("verify")
+    ls = sub.add_parser("list", help="list installed products")
+    check = sub.add_parser("verify", help="compare an installed product with its baseline")
     check.add_argument("product")
     doctor_parser = sub.add_parser("doctor", help="report available build tools")
     doctor_parser.add_argument("--system", choices=sorted(SYSTEMS))

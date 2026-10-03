@@ -57,7 +57,7 @@ USAGE = """usage:
   blunix proxy plan SITE.yaml [--check]
   blunix proxy publish SITE.yaml [--out DIR]
   blunix proxy serve [--site SITE.yaml] [--media DIR [--sums PATH]] [--listen HOST:PORT] [--advertise HOST:PORT]
-  blunix proxy dnsmasq SITE.yaml [--interface IF] [--range START,END] [--proxy HOST:PORT]
+  blunix proxy dnsmasq SITE.yaml [--interface IF] [--range START,END] [--proxy HOST:PORT] [--tftp-root DIR]
 All commands take --config PATH (default ~/.config/blunix/proxy.yaml).
 The account key is read from its key file, never from the command line."""
 

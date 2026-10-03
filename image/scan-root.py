@@ -41,7 +41,9 @@ def _secrets():
             with open(path, "rb") as handle:
                 raw = handle.read(512)
         except OSError:
-            _fail("blunix: scan failed")
+            # Name the file, never its contents: the scan needs the build's own
+            # secrets to look for them, so without them it cannot run.
+            _fail("blunix: scan failed: build/" + name + " is missing or unreadable")
         if b"\x00" in raw or len(raw) > 256:
             _fail("blunix: scan failed")
         try:
