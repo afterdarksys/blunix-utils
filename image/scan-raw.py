@@ -85,22 +85,31 @@ def _secrets():
     return found
 
 
+def pem_blocks(blob):
+    """(start, kind, block) for each _PEM match; block is None with no END."""
+    for match in _PEM.finditer(blob):
+        start = match.start()
+        kind = _PEM_KIND.match(blob, start).group(1)
+        end = blob.find(b"-----END " + kind + b"-----", match.end(), start + _PEM_MAX)
+        yield start, kind, (blob[start:end + len(kind) + 14] if end >= 0 else None)
+
+
+def listed(block):
+    return hashlib.sha256(block).hexdigest() in _PUBLIC_KEYS
+
+
 def _private_key(blob, final):
     """True when `blob` holds a PEM private key that is not a listed public one.
 
     A block that starts in the last _TAIL bytes and has no END yet is left for
     the next read, which sees it whole, unless `final` says none follows.
     """
-    for match in _PEM.finditer(blob):
-        start = match.start()
-        kind = _PEM_KIND.match(blob, start).group(1)
-        end = blob.find(b"-----END " + kind + b"-----", match.end(), start + _PEM_MAX)
-        if end < 0:
+    for start, _kind, block in pem_blocks(blob):
+        if block is None:
             if final or start < len(blob) - _TAIL:
                 return True
             continue
-        block = blob[start:end + len(kind) + 14]
-        if hashlib.sha256(block).hexdigest() not in _PUBLIC_KEYS:
+        if not listed(block):
             return True
     return False
 
