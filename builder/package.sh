@@ -16,7 +16,11 @@ else shasum -a 256 $FILES > MANIFEST.sha256; fi
 version=$(python3 -c 'import blunix_builder; print(blunix_builder.__version__)')
 out="$HERE/../build/blunix-builder-$version.tar.gz"
 mkdir -p "$HERE/../build"
+# GNU tar for --sort/--mtime (macOS ships bsdtar; brew install gnu-tar).
+TAR=$(command -v gtar || command -v tar)
+"$TAR" --version 2>/dev/null | grep -q 'GNU tar' \
+  || { echo "package: GNU tar required (brew install gnu-tar)" >&2; exit 1; }
 # shellcheck disable=SC2086
-tar --sort=name --mtime='2026-01-01 00:00:00Z' --owner=0 --group=0 --numeric-owner \
+"$TAR" --sort=name --mtime='2026-01-01 00:00:00Z' --owner=0 --group=0 --numeric-owner \
   -cf - MANIFEST.sha256 $FILES | gzip -n > "$out"
 if command -v sha256sum >/dev/null; then sha256sum "$out"; else shasum -a 256 "$out"; fi
