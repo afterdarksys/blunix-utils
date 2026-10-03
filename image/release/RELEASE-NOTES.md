@@ -1,7 +1,17 @@
-# Blunix @VERSION@ (draft)
+# Blunix @VERSION@
 
-This is an unsigned test release. Nothing in it is signed yet. SHA256SUMS
-proves a download matches what was built; it does not prove who built it.
+SHA256SUMS lists the sha256 of every file. SHA256SUMS.asc, added when the
+release is signed offline after the build, is a signature over that list by
+the Blunix release key:
+
+```
+62F7 36BE A2AB 2E1F A16D  5138 BCB3 426C 090A DF92
+Blunix Release Signing <sign-releases@blunix.io>
+```
+
+The key is `keys/blunix-releases.asc` in the repository. A release without
+SHA256SUMS.asc is unsigned: its checksums prove the bytes match what was
+built, not who built them.
 
 Blunix @VERSION@ is based on Debian 13 (trixie).
 
@@ -12,7 +22,8 @@ Blunix @VERSION@ is based on Debian 13 (trixie).
 | `blunix-installer.iso` | The live installer. Write it to a USB stick or attach it as a CD. |
 | `blunix.raw.zst` | The disk image the installer writes. Also bootable on its own after `zstd -d`. |
 | `vmlinuz`, `initrd.img`, `blunix.squashfs` | Netboot media for iPXE (`image/ipxe/blunix.ipxe`). |
-| `SHA256SUMS` | The sha256 of every file above. |
+| `SHA256SUMS`, `SHA256SUMS.asc` | The sha256 of every file, and the signature over that list. |
+| `build-provenance.json` | What was built, from which commit, with which inputs. |
 
 ## Boot
 
@@ -27,13 +38,16 @@ Blunix @VERSION@ is based on Debian 13 (trixie).
 
 ## Verify
 
-Download the files and SHA256SUMS into one folder, then:
+Download the files, SHA256SUMS and SHA256SUMS.asc into one folder, then:
 
 ```
+gpg --import blunix-releases.asc
+gpg --verify SHA256SUMS.asc SHA256SUMS
 sha256sum -c --ignore-missing SHA256SUMS
 ```
 
-On a Mac, use `shasum -a 256 -c SHA256SUMS`. Every line must say OK. Do not
+gpg must say `Good signature` from the fingerprint above. Every line from
+sha256sum must say OK; on a Mac, use `shasum -a 256 -c SHA256SUMS`. Do not
 boot or write a file that fails.
 
 ## Licenses and source
