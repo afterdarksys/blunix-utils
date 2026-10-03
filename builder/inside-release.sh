@@ -58,6 +58,13 @@ handback() {
 }
 trap handback EXIT
 
+# A fresh, empty build/ (never a carried cache), plus this build's own throwaway
+# test secrets: scan-root.py and scan-raw.py search the image for them, so they
+# must exist even though a release image locks root and never contains them.
+# They stay 0600 in build/, outside build/release/, which is all that is staged.
+mkdir /src/build
+python3 /src/image/prepare-secrets.py
+
 echo "blunix-builder: disk"
 bash /src/image/build-test-disk.sh --inside --release
 echo "blunix-builder: installer"

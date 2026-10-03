@@ -746,6 +746,16 @@ class DataDiskTests(unittest.TestCase):
         self.assertIn('/srv is on the root disk', sh)
 
 
+    def test_release_container_starts_from_a_fresh_build_dir_with_secrets(self):
+        sh = (ROOT / "builder" / "inside-release.sh").read_text()
+        refuse = sh.index('if [ -e /src/build ]; then')
+        made = sh.index("mkdir /src/build\n")
+        secrets = sh.index("python3 /src/image/prepare-secrets.py")
+        disk = sh.index("bash /src/image/build-test-disk.sh --inside --release")
+        self.assertLess(refuse, made)
+        self.assertLess(made, secrets)
+        self.assertLess(secrets, disk)
+
     def test_docker_waits_for_the_data_disk(self):
         sh = (ROOT / "builder" / "install.sh").read_text()
         dropin = sh.index("/etc/systemd/system/docker.service.d/blunix-wait-for-srv.conf")
