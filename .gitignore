@@ -3,3 +3,16 @@ __pycache__/
 *.pyc
 .DS_Store
 .ruff_cache/
+
+# Key exports and local GPG state must not be committed.
+*.asc
+*.gpg
+*.pgp
+*.rev
+*.key
+*.pem
+.gnupg/
+private-keys-v1.d/
+openpgp-revocs.d/
+# Reviewed public release key only.
+!/keys/blunix-releases.asc
