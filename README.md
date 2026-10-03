@@ -47,6 +47,10 @@ or pass `--dist /path/to/blunix` to `sync-to-dist.py`.
   variables, process arguments, credentials, or network addresses.
 - `image/scan-root.py`, `scan-raw.py`, `seal-root.py`, `redact-serial.py`,
   `gpl-sources.py`: existing image security, sealing, redaction and source-notice helpers.
+- `builder/`: `blunix-builder`, the release-image runner for the `builder1` host.
+  It builds signed `blunix` release tags in a digest-pinned privileged container
+  and stages unsigned artifacts in R2; see `builder/HOST.md` and
+  `builder/NOTES-blunix.md`. Not synced into the distribution.
 
 These new read-only checks are intentionally narrow. They are not a complete
 hardening audit, signature verification, hardware health test, disk repair tool,

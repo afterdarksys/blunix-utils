@@ -40,6 +40,7 @@
   ],
   "exclude": [
     "tests/test_sync.py",
-    "tests/test_package_utils.py"
+    "tests/test_package_utils.py",
+    "tests/test_builder.py"
   ]
 }

@@ -1,0 +1,12 @@
+#!/usr/bin/python3 -I
+"""Launcher: run blunix_builder from the directory this file is installed in."""
+
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+
+import blunix_builder  # noqa: E402
+
+sys.exit(blunix_builder.main())
