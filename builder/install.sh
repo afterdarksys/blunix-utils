@@ -40,6 +40,21 @@ if find . -type l | grep -q .; then
   fail "package contains symlinks"
 fi
 
+echo "install: data disk"
+# Builds and Docker's layers live on the data disk (/srv), never the root
+# disk: a full root disk mid-build takes the OS with it. The disk is set up
+# once by a human (mkfs is on the vpscfgfarm floor); this only checks it.
+mountpoint -q /srv || fail "/srv is not a mount; set up the data disk first (HOST.md)"
+[ "$(findmnt -n -o SOURCE /srv)" != "$(findmnt -n -o SOURCE /)" ] \
+  || fail "/srv is on the root disk"
+install -d -m 0710 -o root -g root /srv/docker
+install -d -m 0755 -o root -g root /etc/docker
+if [ ! -e /etc/docker/daemon.json ]; then
+  printf '{\n  "data-root": "/srv/docker"\n}\n' > /etc/docker/daemon.json
+elif ! grep -Eq '"data-root": *"/srv/docker"' /etc/docker/daemon.json; then
+  fail "/etc/docker/daemon.json exists without data-root /srv/docker"
+fi
+
 echo "install: packages"
 export DEBIAN_FRONTEND=noninteractive
 need=""
@@ -53,6 +68,9 @@ if [ -n "$need" ]; then
   # shellcheck disable=SC2086
   apt-get install -y -qq --no-install-recommends $need
 fi
+
+root_dir=$(docker info -f '{{.DockerRootDir}}' 2>/dev/null || true)
+[ "$root_dir" = /srv/docker ] || fail "docker data root is '$root_dir', expected /srv/docker"
 
 echo "install: user"
 if ! getent group builder >/dev/null; then

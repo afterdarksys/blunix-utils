@@ -733,5 +733,18 @@ class DoorTests(unittest.TestCase):
         self.assertNotRegex(rules, r"\b\d{1,3}(\.\d{1,3}){3}\b")
 
 
+class DataDiskTests(unittest.TestCase):
+    def test_install_pins_docker_to_the_data_disk_before_installing_it(self):
+        sh = (ROOT / "builder" / "install.sh").read_text()
+        guard = sh.index("mountpoint -q /srv")
+        daemon = sh.index('"data-root": "/srv/docker"')
+        packages = sh.index('echo "install: packages"')
+        check = sh.index("{{.DockerRootDir}}")
+        self.assertLess(guard, daemon)
+        self.assertLess(daemon, packages)
+        self.assertLess(packages, check)
+        self.assertIn('/srv is on the root disk', sh)
+
+
 if __name__ == "__main__":
     unittest.main()

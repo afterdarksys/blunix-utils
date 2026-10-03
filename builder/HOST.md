@@ -31,6 +31,22 @@ custom image" feature would break this model and needs a new threat model.
 nftables unattended-upgrades openssh-client ca-certificates`. Recommended
 alongside (baseline runbook, not install.sh): `fail2ban auditd chrony`.
 
+## Data disk
+
+builder1 has a 300 GiB root disk and a separate 2.9 TiB data disk. Builds and
+Docker's layers go on the data disk, mounted at `/srv`: a full root disk in
+the middle of a build would take the OS with it.
+
+Set it up once, by a human: `mkfs` is on the vpscfgfarm deny floor, so it
+never goes through the door. The script is
+`vpscfgfarm/deploy/builder1/setup-data-disk.sh`. It refuses unless the disk is
+blank, creates GPT + one XFS partition labelled `blunix-data`, and mounts it
+at `/srv` by UUID with `nofail`.
+
+`install.sh` then refuses to run unless `/srv` is its own mount, writes
+`/etc/docker/daemon.json` with `"data-root": "/srv/docker"` before Docker is
+installed, and checks `docker info` reports that root afterwards.
+
 ## sshd
 
 DartNode ships `/etc/ssh/sshd_config.d/01-dartnode.conf` with password and
