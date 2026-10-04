@@ -11,4 +11,5 @@ keys, test credentials, or Git internals into the distribution.
 
 Run focused tests under `PYTHONPATH=lib`. The full host suite targets Debian and
 requires age, Git, Node, zstd and e2fsprogs; `image/run-unit-tests.sh` prepares it
-in Docker. The existing age PTY wrapper has an unresolved macOS test issue.
+in Docker. On macOS, age from MacPorts (/opt/local/bin) or Homebrew
+works; the suite also runs natively there apart from e2fsprogs-only tests.
