@@ -1000,6 +1000,9 @@ class GuiTests(unittest.TestCase):
         self.assertGreaterEqual(_contrast("#8eb4d4", "#12161a"), 7)
 
 
+# brand/ lives only in the distribution (afterdarksys/blunix); this file syncs
+# there and the test runs against the real assets. Here there is nothing to check.
+@unittest.skipUnless(os.path.isdir(os.path.join(ROOT, "brand")), "brand/ is in the distribution only")
 class BrandTests(unittest.TestCase):
     def test_the_word_is_outlined_type_beside_the_mark(self):
         for name in ("mark.jpg", "logo-mark.svg", "logo-horizontal.svg"):
