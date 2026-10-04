@@ -17,6 +17,8 @@ import unittest
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 TOOL = os.path.join(ROOT, "image", "scan-raw-explain.py")
 HAVE_EXT4 = all(shutil.which(t) for t in ("mke2fs", "debugfs", "sfdisk"))
+# CI sets this so missing e2fsprogs/sfdisk fails instead of skipping.
+REQUIRE_EXT4 = os.environ.get("BLUNIX_REQUIRE_SCAN_TOOLS") == "1"
 HAVE_ZSTD = shutil.which("zstd") is not None
 
 
@@ -95,7 +97,7 @@ class ExplainTests(unittest.TestCase):
                                  [str(o) for o in offsets])
                 self.assertIn("decompress to map files", zout)
 
-    @unittest.skipUnless(HAVE_EXT4, "e2fsprogs/sfdisk not installed")
+    @unittest.skipUnless(HAVE_EXT4 or REQUIRE_EXT4, "e2fsprogs/sfdisk not installed")
     def test_locate_maps_hits_to_files_and_free_space(self):
         kept = _pem(b"OPENSSH PRIVATE KEY", b"openssh-key-v1\x00" + os.urandom(300))
         gone = _pem(b"EC PRIVATE KEY", os.urandom(121))

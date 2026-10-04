@@ -8,6 +8,7 @@ at run time from random bytes, and nothing prints it.
 
 import base64
 import contextlib
+import glob
 import hashlib
 import importlib.util
 import io
@@ -23,7 +24,11 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SCAN = os.path.join(ROOT, "image", "scan-raw.py")
 HAVE_EXT4 = shutil.which("mke2fs") is not None and shutil.which("debugfs") is not None
 HAVE_ZSTD = shutil.which("zstd") is not None
-GNUTLS = "/usr/lib/x86_64-linux-gnu/libgnutls.so.30.40.3"
+# Whatever libgnutls30 Debian ships now, not one pinned file name: a point
+# release renames the file, and that is when a stale allowlist must show up.
+GNUTLS = sorted(glob.glob("/usr/lib/*-linux-gnu/libgnutls.so.30.*"))
+# CI sets this so a missing library fails instead of skipping.
+REQUIRE_GNUTLS = os.environ.get("BLUNIX_REQUIRE_SCAN_TOOLS") == "1"
 
 
 def _module():
@@ -159,9 +164,12 @@ class ScanRawTests(unittest.TestCase):
         # A re-encoded copy of a listed block is not the listed bytes.
         self.assertEqual(scan.check(block.replace(b"\n", b"\r\n"), []), "private key in the raw image")
 
-    @unittest.skipUnless(os.path.isfile(GNUTLS), "Debian 13 libgnutls30t64 not installed")
+    @unittest.skipUnless(GNUTLS or REQUIRE_GNUTLS, "Debian 13 libgnutls30t64 not installed")
     def test_shipped_libgnutls_passes(self):
-        self.assertEqual(self._run(GNUTLS), (0, ""))
+        self.assertTrue(GNUTLS, "BLUNIX_REQUIRE_SCAN_TOOLS=1 but no libgnutls.so.30.* found")
+        for path in GNUTLS:
+            with self.subTest(path=path):
+                self.assertEqual(self._run(path), (0, ""))
 
     @unittest.skipUnless(HAVE_EXT4, "e2fsprogs not installed")
     def test_deleted_key_in_ext4_free_space(self):

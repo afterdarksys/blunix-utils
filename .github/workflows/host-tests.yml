@@ -21,7 +21,7 @@ jobs:
         run: |
           apt-get update -qq
           apt-get install -y -qq ca-certificates git python3 python3-yaml python3-pip \
-            age zstd e2fsprogs build-essential golang-go cargo rustc nodejs npm php-cli composer
+            age zstd e2fsprogs fdisk libgnutls30t64 build-essential golang-go cargo rustc nodejs npm php-cli composer
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -32,4 +32,8 @@ jobs:
         env:
           PYTHONPATH: lib
           BLUNIX_TOOLCHAIN_TESTS: '1'
+          # The raw scan's allowlist is checked against the libgnutls Debian
+          # ships today, so a gnutls update that changes its keys fails here,
+          # not in a release build.
+          BLUNIX_REQUIRE_SCAN_TOOLS: '1'
         run: python3 -m unittest discover -s tests -v
