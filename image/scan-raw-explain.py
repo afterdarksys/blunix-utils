@@ -113,7 +113,11 @@ def _partitions(image):
 
 def _debugfs(image, offset, request):
     target = image if offset == 0 else "%s?offset=%d" % (image, offset)
-    proc = subprocess.run(["debugfs", "-R", request, target], capture_output=True, check=False)
+    try:
+        proc = subprocess.run(["debugfs", "-R", request, target], capture_output=True, check=False)
+    except OSError:
+        # No debugfs (e2fsprogs) here: report the hit without a file, never crash.
+        return 127, ""
     return proc.returncode, proc.stdout.decode("utf-8", "replace")
 
 

@@ -163,6 +163,17 @@ def _run_age(mode, passphrase, payload, timeout=_TIMEOUT):
                     buf = buf[-1024:]
                 if proc.poll() is not None and b"passphrase" not in buf.lower():
                     return
+            # Keep reading the pty until age exits. age still writes to it after
+            # the last answer (a newline, terminal clears), and on macOS a process
+            # whose tty output was never read blocks in exit until it drains, past
+            # even SIGKILL. Linux does not wait, which hid this. Nothing is kept.
+            while proc.poll() is None and time.monotonic() < deadline:
+                try:
+                    ready, _, _ = select.select([master], [], [], 0.2)
+                    if ready and not os.read(master, 1024):
+                        return
+                except (OSError, ValueError):
+                    return
 
         workers = (
             threading.Thread(target=_write_stdin),
