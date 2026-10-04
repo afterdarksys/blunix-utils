@@ -1,0 +1,50 @@
+[Unit]
+Description=Blunix release image builder (one poll, at most one build)
+Documentation=file:///opt/blunix-builder/HOST.md
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# Dedicated user. TRADEOFF: membership in group docker is root-equivalent
+# (the docker socket can start a privileged container), and the build itself
+# MUST be privileged (loop devices, kpartx, mount). So this host is the trust
+# boundary. The hardening below still confines the runner process itself,
+# which is the part that parses network input (git, gpg, HTTP).
+User=builder
+Group=builder
+SupplementaryGroups=docker
+ExecStart=/opt/blunix-builder/bin/blunix-builder run --config /etc/blunix-builder/config.yaml
+# The R2 key pair reaches only this service, as a private read-only copy.
+LoadCredential=blunix-r2:/etc/blunix-builder/r2-credentials
+# build_timeout is capped at 4h in blunix_builder.py so a build normally ends on
+# its own timeout first. If systemd does stop the run, the build container is
+# not in this cgroup (dockerd owns it) and would keep running privileged and
+# unsupervised; remove every container carrying the builder's label.
+TimeoutStartSec=5h
+ExecStopPost=-/bin/sh -c 'docker ps -aq --filter label=blunix-builder=release | xargs -r docker rm -f'
+UMask=0027
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ReadWritePaths=/var/lib/blunix-builder /srv/blunix-builds /run/docker.sock
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM

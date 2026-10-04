@@ -1,0 +1,53 @@
+# /etc/blunix-builder/config.yaml  (root:root 0644; holds no secret)
+# Every trust decision is explicit here. A missing or malformed value stops
+# the builder; nothing falls back to a default for repo, image, keys or bucket.
+
+# Public distribution repo. Anonymous HTTPS, no token. Build blunix (dist)
+# tags only, never blunix-utils.
+repo_url: https://github.com/afterdarksys/blunix.git
+
+# Seconds between ls-remote polls (the timer fires every 10 min).
+poll_interval: 600
+
+# Base image for the privileged build container, pinned by digest. Bumping it
+# is a reviewed change. Get the digest on a trusted machine with:
+#   docker buildx imagetools inspect debian:trixie-slim
+# REPLACE the zeros: the builder cannot run until a real digest is set.
+container_image: debian:trixie-slim@sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+# Docker network for the build. Never "host". The build needs Debian mirrors
+# (mmdebstrap/apt over 80/443) and DNS; HOST.md restricts this network's
+# egress in the DOCKER-USER chain.
+container_network: blunix-build
+
+build_timeout: 14400
+state_dir: /var/lib/blunix-builder
+work_dir: /srv/blunix-builds
+keep_builds: 2
+max_attempts: 3
+
+# Trust root for tag signatures: an armored OpenPGP public key file shipped in
+# the builder package, plus the exact primary fingerprints allowed to sign
+# release tags. Both are required. A tag signed by any other key, an unsigned
+# annotated tag, a lightweight tag, or a tag whose signed name differs from its
+# ref name is rejected.
+trusted_keys: /opt/blunix-builder/keys/tag-signers.asc
+trusted_fingerprints:
+  - 62F736BEA2AB2E1FA16D5138BCB3426C090ADF92
+
+# Optional: accept SSH-signed tags too. Both lines or neither.
+# allowed_signers: /opt/blunix-builder/keys/allowed_signers
+# trusted_ssh_fingerprints:
+#   - SHA256:...
+
+r2:
+  # https://<account-id>.r2.cloudflarestorage.com
+  endpoint: https://ACCOUNT_ID.r2.cloudflarestorage.com
+  bucket: blunix-release-staging
+  region: auto
+  # access_key_id=... / secret_access_key=... ; root:root 0600. systemd hands
+  # the service a private copy via LoadCredential=blunix-r2.
+  credentials_file: /etc/blunix-builder/r2-credentials
+  # HEAD {tag}/build-provenance.json before building. Needs object read on the
+  # bucket (R2 has no write-only object token). A non-200/404 answer stops the run.
+  check_existing: true

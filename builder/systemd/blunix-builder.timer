@@ -1,0 +1,11 @@
+[Unit]
+Description=Poll for signed Blunix release tags every 10 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitInactiveSec=10min
+RandomizedDelaySec=60
+Unit=blunix-builder.service
+
+[Install]
+WantedBy=timers.target

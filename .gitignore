@@ -16,3 +16,4 @@ private-keys-v1.d/
 openpgp-revocs.d/
 # Reviewed public release key only.
 !/keys/blunix-releases.asc
+!/builder/keys/tag-signers.asc

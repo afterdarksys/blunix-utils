@@ -67,7 +67,9 @@ class ReleaseTextTests(unittest.TestCase):
     def test_release_notes(self):
         text = _read("image", "release", "RELEASE-NOTES.md")
         for phrase in (
-            "unsigned test release",
+            "62F7 36BE A2AB 2E1F A16D  5138 BCB3 426C 090A DF92",
+            "gpg --verify SHA256SUMS.asc SHA256SUMS",
+            "A release without\nSHA256SUMS.asc is unsigned",
             "boots on UEFI and on BIOS",
             "An installed disk boots on UEFI only.",
             "Netboot is for trusted LANs only until images are signed.",
