@@ -65,6 +65,9 @@ def _hits(scan, blob, base, final, secrets):
         if start < edge:
             name = kind.decode("ascii") + (" (no END)" if block is None else "")
             yield base + start, name, block is not None and scan.listed(block)
+    for match in scan._PEM_HEADER.finditer(blob):
+        if match.start() < edge:
+            yield base + match.start(), "PEM key with headers", False
     for pattern, name in ((scan._OPENSSH_BODY, "OPENSSH key body"), (scan._AGE_SCRYPT, "age fixture")):
         for match in re.finditer(re.escape(pattern), blob):
             if match.start() < edge:

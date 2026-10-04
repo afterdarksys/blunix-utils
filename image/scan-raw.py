@@ -6,7 +6,8 @@ mounted-root scan cannot see those; this one reads every byte of the image,
 or of the stream `zstd -dc` makes from a .zst. It refuses a PEM private key
 body (OPENSSH, RSA, EC, PKCS#8, encrypted), an OpenSSH key body without its
 header, a full age secret key, a passphrase-encrypted age header (the test
-fixture's header), and the two plaintext test secrets in build/. It prints a
+fixture's header), and the two plaintext test secrets in build/. A PEM key
+with header lines (Proc-Type:, DEK-Info:) is refused on the header alone. It prints a
 fixed line and no bytes or offsets. A read error or a zstd failure fails
 closed.
 
@@ -35,7 +36,11 @@ _CHAR = re.compile(r"[A-Za-z0-9_-]{8,128}\Z")
 _CHUNK = 8 * 1024 * 1024
 _TAIL = 4096
 # A marker followed by a base64 body. The sshd marker is followed by NULs.
-_PEM = re.compile(rb"-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY-----\r?\n(?:[A-Za-z0-9-]+: [^\n]{0,200}\n)*\r?\n?[A-Za-z0-9+/=]{16}")
+_PEM = re.compile(rb"-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY-----\r?\n\r?\n?[A-Za-z0-9+/=]{16}")
+# A marker followed by a PEM header line (Proc-Type:, DEK-Info:, ...). Refused
+# whatever follows: headers of any number or length cannot push the body past
+# a read boundary or a pattern bound, and every match fits in _TAIL.
+_PEM_HEADER = re.compile(rb"-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY-----\r?\n[A-Za-z0-9-]{1,64}:")
 _PEM_KIND = re.compile(rb"-----BEGIN ([A-Z0-9 ]{0,40}PRIVATE KEY)-----")
 _PEM_MAX = 16384
 # The self-test keys in Debian 13's libgnutls.so.30.40.3 (libgnutls30t64
@@ -119,7 +124,7 @@ def check(blob, secrets, final=True):
     for secret in secrets:
         if secret in blob:
             return "plaintext secret in the raw image"
-    if b"PRIVATE KEY-----" in blob and _private_key(blob, final):
+    if b"PRIVATE KEY-----" in blob and (_PEM_HEADER.search(blob) or _private_key(blob, final)):
         return "private key in the raw image"
     if _OPENSSH_BODY in blob:
         return "private key in the raw image"

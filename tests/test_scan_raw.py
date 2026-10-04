@@ -99,6 +99,9 @@ class ScanRawTests(unittest.TestCase):
             (_pem(b"ENCRYPTED PRIVATE KEY"), "private key in the raw image"),
             (_pem(b"RSA PRIVATE KEY", headers=b"Proc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,00\n\n"), "private key in the raw image"),
             (_openssh_key().split(b"\n", 1)[1], "private key in the raw image"),
+            # Headers of any number or length: refused on the first header line.
+            (_pem(b"RSA PRIVATE KEY", headers=b"".join(b"X-Pad-%d: %s\n" % (n, b"a" * 150) for n in range(40)) + b"\n"), "private key in the raw image"),
+            (_pem(b"PRIVATE KEY", headers=b"Comment: " + b"c" * 300 + b"\n\n"), "private key in the raw image"),
             (_age_key(), "age secret key in the raw image"),
             (b"age-encryption.org/v1\n-> scrypt c2FsdA 18\n", "age fixture in the raw image"),
             (b"x" + _secret("root-password") + b"x", "plaintext secret in the raw image"),
@@ -170,6 +173,18 @@ class ScanRawTests(unittest.TestCase):
         for path in GNUTLS:
             with self.subTest(path=path):
                 self.assertEqual(self._run(path), (0, ""))
+
+    def test_headed_key_across_a_read_boundary(self):
+        # Over 4 KiB of headers, the BEGIN line before the read boundary and
+        # the body far after it: the header pattern is short, so it still fits.
+        key = _pem(b"RSA PRIVATE KEY", headers=b"".join(b"X-Pad-%d: %s\n" % (n, b"a" * 150) for n in range(40)) + b"\n")
+        for cut in (5, 40, 60, 2000, 6300):
+            with self.subTest(cut=cut):
+                with tempfile.TemporaryDirectory() as folder:
+                    path = os.path.join(folder, "disk.raw")
+                    with open(path, "wb") as handle:
+                        handle.write(b"\xa5" * (8 * 1024 * 1024 - cut) + key + b"\x00" * 64)
+                    self.assertEqual(self._run(path), (1, "private key in the raw image"))
 
     @unittest.skipUnless(HAVE_EXT4, "e2fsprogs not installed")
     def test_deleted_key_in_ext4_free_space(self):
