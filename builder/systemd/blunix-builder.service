@@ -18,7 +18,12 @@ SupplementaryGroups=docker
 ExecStart=/opt/blunix-builder/bin/blunix-builder run --config /etc/blunix-builder/config.yaml
 # The R2 key pair reaches only this service, as a private read-only copy.
 LoadCredential=blunix-r2:/etc/blunix-builder/r2-credentials
+# build_timeout is capped at 4h in blunix_builder.py so a build normally ends on
+# its own timeout first. If systemd does stop the run, the build container is
+# not in this cgroup (dockerd owns it) and would keep running privileged and
+# unsupervised; remove every container carrying the builder's label.
 TimeoutStartSec=5h
+ExecStopPost=-/bin/sh -c 'docker ps -aq --filter label=blunix-builder=release | xargs -r docker rm -f'
 UMask=0027
 
 NoNewPrivileges=yes

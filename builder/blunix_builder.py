@@ -84,6 +84,12 @@ _BAD_GPG = ("BADSIG", "ERRSIG", "EXPSIG", "EXPKEYSIG", "REVKEYSIG",
             "NO_PUBKEY", "NODATA", "FAILURE")
 
 
+MAX_BUILD_TIMEOUT = 4 * 3600
+# Every build container carries this label, so the unit's ExecStopPost can
+# remove one that a systemd stop orphaned. Rehearsals do not carry it.
+CONTAINER_LABEL = "blunix-builder=release"
+
+
 class BuilderError(Exception):
     """A fail-closed stop. The message must never contain a secret."""
 
@@ -165,7 +171,10 @@ def validate_config(raw):
     cfg["repo_url"] = repo
 
     cfg["poll_interval"] = _int(raw.get("poll_interval", 600), "poll_interval", 60, 86400)
-    cfg["build_timeout"] = _int(raw.get("build_timeout", 14400), "build_timeout", 600, 86400)
+    # At most 4h: blunix-builder.service stops the run at TimeoutStartSec=5h, and
+    # git, the image pull and the upload need the rest. A build systemd kills
+    # instead of this timeout leaves its container to ExecStopPost.
+    cfg["build_timeout"] = _int(raw.get("build_timeout", 14400), "build_timeout", 600, MAX_BUILD_TIMEOUT)
     cfg["keep_builds"] = _int(raw.get("keep_builds", 2), "keep_builds", 1, 20)
     cfg["max_attempts"] = _int(raw.get("max_attempts", 3), "max_attempts", 1, 20)
 
@@ -818,6 +827,7 @@ def docker_argv(cfg, tag, commit, worktree, share_dir, uid, gid):
     return [
         "docker", "run", "--rm", "--pull=never",
         "--name", container_name(tag, commit),
+        "--label", CONTAINER_LABEL,
         "--privileged",
         "--network", cfg["container_network"],
         "-e", f"BLUNIX_RELEASE_VERSION={tag}",
@@ -836,6 +846,9 @@ def run_container(cfg, tag, commit, worktree, runner=run_cmd, share_dir=SHARE_DI
     pulled = runner(["docker", "pull", "-q", cfg["container_image"]], env, GIT_TIMEOUT)
     if pulled.returncode != 0:
         raise BuilderError("docker pull of pinned image failed")
+    # A container left by a run that systemd killed would make `--name` collide
+    # and burn this attempt too. The lock means no other run owns it.
+    runner(["docker", "rm", "-f", container_name(tag, commit)], env, 120)
     argv = docker_argv(cfg, tag, commit, worktree, share_dir, os.getuid(), os.getgid())
     log_path = worktree.parent / (worktree.name + ".log")
     with open(log_path, "wb") as build_log:
@@ -946,7 +959,33 @@ def upload_release(client, release_dir, tag, digests):
         log("uploaded", tag=tag, artifact=name, sha256=expected)
 
 
-def prune_builds(cfg, git, keep):
+def clear_build_dir(cfg, worktree, runner=run_cmd):
+    """Remove <worktree>/build that a killed build left owned by root.
+
+    The container chowns build/ back to the builder on exit, but a timeout or a
+    systemd kill SIGKILLs it first, and the builder user cannot delete root's
+    files. A throwaway root container from the same pinned image, with no
+    network and only that worktree mounted, removes build/ instead.
+    """
+    if not (worktree / "build").exists():
+        return
+    if worktree.resolve().parent != cfg["work_dir"].resolve():
+        raise BuilderError("refusing to clear a build dir outside work_dir")
+    runner(["docker", "run", "--rm", "--pull=never", "--network", "none",
+            "-v", f"{worktree}:/w", cfg["container_image"], "rm", "-rf", "--", "/w/build"],
+           base_env(cfg["state_dir"]), 600)
+    if (worktree / "build").exists():
+        raise BuilderError(f"could not clear a root-owned build dir: {worktree.name}")
+
+
+def remove_build(cfg, git, path, runner=run_cmd):
+    clear_build_dir(cfg, path, runner)
+    git.remove_worktree(path)
+    if path.exists():
+        shutil.rmtree(path)
+
+
+def prune_builds(cfg, git, keep, runner=run_cmd):
     pattern = re.compile(r"(v[0-9][0-9A-Za-z.-]*)-[0-9a-f]{12}\Z")
     entries = []
     for entry in os.listdir(cfg["work_dir"]):
@@ -954,9 +993,7 @@ def prune_builds(cfg, git, keep):
         if pattern.fullmatch(entry) and path.is_dir() and not path.is_symlink():
             entries.append((path.stat().st_mtime, path))
     for _, path in sorted(entries, reverse=True)[keep:]:
-        git.remove_worktree(path)
-        if path.exists():
-            shutil.rmtree(path)
+        remove_build(cfg, git, path, runner)
         log_file = path.parent / (path.name + ".log")
         if log_file.exists():
             log_file.unlink()
@@ -986,9 +1023,7 @@ def build_one(cfg, deps, state, git, client, tag, tag_object, commit):
     log("tag_verified", tag=tag, commit=commit, signer=signer)
     worktree = build_dir_for(cfg, tag, commit)
     if worktree.exists():
-        git.remove_worktree(worktree)
-        if worktree.exists():
-            shutil.rmtree(worktree)
+        remove_build(cfg, git, worktree, deps.runner)
     git.add_worktree(worktree, commit)
     if (worktree / "build").exists():
         raise BuilderError("fresh worktree already has build/; refusing stale cache")
@@ -1051,6 +1086,12 @@ def run_once(cfg, deps=None, force_poll=False):
             state.bump_attempts(tag, tag_object)
             try:
                 build_one(cfg, deps, state, git, client, tag, tag_object, commit)
+            except OSError as exc:
+                # A filesystem error (a leftover the cleanup could not remove, a
+                # full disk) is a failed attempt, logged, not a traceback.
+                log("build_failed", level="error", tag=tag,
+                    reason=f"{type(exc).__name__}: {exc.strerror or exc}")
+                return 1
             except BuilderError as exc:
                 message = str(exc)
                 if message.startswith("tag signature rejected"):
@@ -1059,7 +1100,10 @@ def run_once(cfg, deps=None, force_poll=False):
                     return 2
                 log("build_failed", level="error", tag=tag, reason=message)
                 return 1
-            prune_builds(cfg, git, cfg["keep_builds"])
+            try:
+                prune_builds(cfg, git, cfg["keep_builds"], deps.runner)
+            except (BuilderError, OSError) as exc:
+                log("prune_failed", level="warning", reason=str(exc))
             return 0  # one build per run; the timer brings the next
         return 0
 
@@ -1084,6 +1128,9 @@ def main(argv=None):
         return run_once(cfg, force_poll=args.force_poll)
     except BuilderError as exc:
         log("error", level="error", reason=str(exc))
+        return 1
+    except OSError as exc:
+        log("error", level="error", reason=f"{type(exc).__name__}: {exc.strerror or exc}")
         return 1
 
 

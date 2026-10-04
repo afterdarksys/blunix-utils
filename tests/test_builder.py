@@ -9,6 +9,7 @@ import importlib.util
 import io
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -73,8 +74,9 @@ class FakeHost:
 
     def __init__(self, tags=None, tag_name=None, obj_type="tag", signature="pgp",
                  gpg_status=None, verify_code=0, fetched_obj=TAG_OBJ, commit=COMMIT,
-                 build_ok=True, release_files=None):
+                 build_ok=True, release_files=None, cleanup_ok=True):
         self.calls = []
+        self.cleanup_ok = cleanup_ok
         self.tags = tags if tags is not None else {"v0.2.0": (TAG_OBJ, COMMIT)}
         self.tag_name = tag_name
         self.obj_type = obj_type
@@ -145,6 +147,13 @@ class FakeHost:
         if argv[1] in ("pull", "rm"):
             return done()
         assert argv[1] == "run"
+        if "none" in argv and argv[-3:-1] == ["-rf", "--"]:
+            # The root cleanup container: removes <worktree>/build, unless the
+            # test plays a cleanup that failed.
+            mount = next(a for a in argv if a.endswith(":/w")).rsplit(":/w", 1)[0]
+            if self.cleanup_ok:
+                shutil.rmtree(Path(mount) / "build")
+            return done()
         if not self.build_ok:
             return done(code=3)
         src = next(a for a in argv if a.endswith(":/src")).rsplit(":/src", 1)[0]
@@ -355,6 +364,8 @@ class ConfigTests(unittest.TestCase):
             (lambda r: r["r2"].pop("credentials_file"), "credentials_file"),
             (lambda r: r.update(allowed_signers="/x"), "trusted_ssh_fingerprints"),
             (lambda r: r.pop("r2"), "r2"),
+            # Must end before blunix-builder.service's TimeoutStartSec=5h.
+            (lambda r: r.update(build_timeout=bb.MAX_BUILD_TIMEOUT + 1), "build_timeout"),
         ]
         for mutate, pattern in cases:
             with self.subTest(pattern=pattern):
@@ -659,6 +670,70 @@ class RunTests(Base):
         self.assertEqual(host.ran("docker"), [])
         self.assertIn("max attempts", logs)
 
+    def _leftover(self, cfg):
+        # What a killed build leaves: the worktree with a build/ dir that, on the
+        # host, is owned by root.
+        worktree = bb.build_dir_for(cfg, "v0.2.0", COMMIT)
+        (worktree / "build" / "release").mkdir(parents=True)
+        (worktree / "build" / "root-password").write_text("x")
+        return worktree
+
+    def test_leftover_build_dir_is_cleared_by_a_root_container_first(self):
+        cfg = make_cfg(self.tmp)
+        worktree = self._leftover(cfg)
+        host = FakeHost()
+        code, logs = self.run_quiet(cfg, self.deps(host))
+        self.assertEqual(code, 0, logs)
+        runs = host.ran("docker", "run")
+        cleanup, build = runs[0], runs[1]
+        self.assertEqual(cleanup[-4:], ["rm", "-rf", "--", "/w/build"])
+        self.assertEqual(cleanup[cleanup.index("--network") + 1], "none")
+        self.assertIn(f"{worktree}:/w", cleanup)
+        self.assertIn(cfg["container_image"], cleanup)
+        self.assertNotIn("--privileged", cleanup)
+        self.assertIn("--privileged", build)
+
+    def test_uncleared_leftover_is_a_logged_failed_attempt(self):
+        cfg = make_cfg(self.tmp)
+        self._leftover(cfg)
+        host = FakeHost(cleanup_ok=False)
+        code, logs = self.run_quiet(cfg, self.deps(host))
+        self.assertEqual(code, 1)
+        self.assertIn("could not clear a root-owned build dir", logs)
+        self.assertEqual(len(host.ran("docker", "run")), 1)
+        for line in logs.splitlines():
+            json.loads(line)
+
+    def test_filesystem_error_is_logged_not_raised(self):
+        cfg = make_cfg(self.tmp)
+        self._leftover(cfg)
+        host = FakeHost()
+        real = bb.shutil.rmtree
+
+        def denied(path, *a, **kw):
+            raise PermissionError(13, "Permission denied", str(path))
+        bb.shutil.rmtree = denied
+        self.addCleanup(setattr, bb.shutil, "rmtree", real)
+        code, logs = self.run_quiet(cfg, self.deps(host))
+        self.assertEqual(code, 1)
+        self.assertIn("build_failed", logs)
+        self.assertIn("PermissionError", logs)
+        for line in logs.splitlines():
+            json.loads(line)
+
+    def test_build_container_is_labelled_and_a_stale_one_removed_first(self):
+        cfg = make_cfg(self.tmp)
+        host = FakeHost()
+        code, _ = self.run_quiet(cfg, self.deps(host))
+        self.assertEqual(code, 0)
+        docker = [a for a, _ in host.calls if a[0] == "docker"]
+        name = bb.container_name("v0.2.0", COMMIT)
+        rm_at = docker.index(["docker", "rm", "-f", name])
+        run_at = next(i for i, a in enumerate(docker) if a[1] == "run")
+        self.assertLess(rm_at, run_at)
+        run = docker[run_at]
+        self.assertEqual(run[run.index("--label") + 1], bb.CONTAINER_LABEL)
+
     def test_missing_trust_root_stops_before_network(self):
         cfg = make_cfg(self.tmp)
         cfg["trusted_keys"].unlink()
@@ -764,6 +839,15 @@ class DataDiskTests(unittest.TestCase):
         conf = (ROOT / "builder" / "systemd" / "docker-wait-for-srv.conf").read_text()
         self.assertIn("RequiresMountsFor=/srv/docker", conf)
         self.assertIn("systemd/docker-wait-for-srv.conf", (ROOT / "builder" / "MANIFEST.sha256").read_text())
+
+    def test_unit_removes_orphaned_build_containers(self):
+        unit = (ROOT / "builder" / "systemd" / "blunix-builder.service").read_text()
+        stop = next(l for l in unit.splitlines() if l.startswith("ExecStopPost="))
+        self.assertIn(f"label={bb.CONTAINER_LABEL}", stop)
+        self.assertIn("docker rm -f", stop)
+        start = next(l for l in unit.splitlines() if l.startswith("TimeoutStartSec="))
+        self.assertEqual(start, "TimeoutStartSec=5h")
+        self.assertLess(bb.MAX_BUILD_TIMEOUT, 5 * 3600)
 
     def test_firewall_is_reloaded_at_boot(self):
         sh = (ROOT / "builder" / "install.sh").read_text()
