@@ -1,0 +1,21 @@
+[Unit]
+Description=Blunix builder fallback firewall (replaced by blunix-firewall.service)
+Documentation=file:///opt/blunix-builder/HOST.md
+# Loaded first at every boot so the host is never up without table
+# inet blunix_host. blunix-firewall.service replaces it with the door ruleset;
+# if that unit fails, this one stays loaded (fail closed, SSH-only inbound).
+DefaultDependencies=no
+# Boot only. A manual start would replace the live door table with this one.
+RefuseManualStart=yes
+After=local-fs.target
+Before=blunix-firewall.service network-pre.target docker.service shutdown.target
+Wants=network-pre.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/blunix-builder/nftables-lockdown.conf
+
+[Install]
+WantedBy=sysinit.target

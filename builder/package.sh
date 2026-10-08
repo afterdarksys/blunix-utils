@@ -7,8 +7,9 @@ set -o pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 cd "$HERE"
 FILES="blunix-builder blunix_builder.py inside-release.sh install.sh check-door.sh config.example.yaml
-nftables.conf HOST.md NOTES-blunix.md keys/tag-signers.asc
-systemd/blunix-builder.service systemd/blunix-builder.timer systemd/blunix-firewall.service systemd/docker-wait-for-srv.conf"
+nftables.conf nftables-lockdown.conf HOST.md NOTES-blunix.md keys/tag-signers.asc
+systemd/blunix-builder.service systemd/blunix-builder.timer systemd/blunix-firewall.service systemd/blunix-firewall-lockdown.service
+systemd/docker-wait-for-srv.conf"
 # shellcheck disable=SC2086
 if command -v sha256sum >/dev/null; then sha256sum $FILES > MANIFEST.sha256
 else shasum -a 256 $FILES > MANIFEST.sha256; fi
