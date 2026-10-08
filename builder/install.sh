@@ -102,6 +102,7 @@ install -m 0755 -o root -g root check-door.sh /opt/blunix-builder/bin/check-door
 install -m 0644 -o root -g root MANIFEST.sha256 /opt/blunix-builder/MANIFEST.sha256
 install -m 0644 -o root -g root config.example.yaml /etc/blunix-builder/config.example.yaml
 install -m 0644 -o root -g root nftables.conf /etc/blunix-builder/nftables.conf
+install -m 0644 -o root -g root nftables-lockdown.conf /etc/blunix-builder/nftables-lockdown.conf
 if [ ! -e /etc/blunix-builder/config.yaml ]; then
   install -m 0644 -o root -g root config.example.yaml /etc/blunix-builder/config.yaml
   echo "install: wrote config.yaml from the example; set container_image and r2.endpoint"
@@ -123,13 +124,20 @@ if [ "$APPLY_FW" -eq 1 ]; then
   [ "$(stat -c '%u' "$door" 2>/dev/null)" = 0 ] || fail "$door missing or not root-owned"
   case "$(stat -c '%a' "$door")" in ?[0-7][2367]|?[2367]?) fail "$door is group/world writable" ;; esac
   bash "$PKG/check-door.sh" "$door" || fail "door.nft rejected"
+  nft -c -f /etc/blunix-builder/nftables-lockdown.conf
   nft -c -f /etc/blunix-builder/nftables.conf
   nft -f /etc/blunix-builder/nftables.conf
-  # Reload the same ruleset at every boot, before networking and Docker.
+  # Reload the same ruleset at every boot, before networking and Docker. The
+  # lockdown unit loads the fallback first, so a failed door unit fails closed.
+  install -m 0644 -o root -g root systemd/blunix-firewall-lockdown.service \
+    /etc/systemd/system/blunix-firewall-lockdown.service
   install -m 0644 -o root -g root systemd/blunix-firewall.service \
     /etc/systemd/system/blunix-firewall.service
   systemctl daemon-reload
-  systemctl enable blunix-firewall.service
+  systemctl enable blunix-firewall-lockdown.service blunix-firewall.service
+  # Debian's nftables.service loads /etc/nftables.conf, which starts with
+  # `flush ruleset` and is not ordered against these units.
+  systemctl mask nftables.service
 fi
 
 systemctl daemon-reload

@@ -92,6 +92,21 @@ door.nft and reloads the same ruleset at every boot, before networking and
 Docker start. Without it the table is gone after a reboot. If the unit fails
 it shows in `systemctl --failed` (and `vpsexec check failed`).
 
+The boot fails closed. `blunix-firewall-lockdown.service` runs first and loads
+`nftables-lockdown.conf`, the same table with the same egress and one
+difference: with no door set, 22/tcp is accepted from any IPv4 address,
+rate-limited per source (sshd is keys-only). `blunix-firewall.service` then
+replaces it atomically with the door ruleset. If the door unit fails, the
+lockdown table stays: inbound is SSH-only, never wide open, and it is not a
+lockout that needs the DartNode console. Fix door.nft, then
+`systemctl restart blunix-firewall.service`. The lockdown unit runs at boot
+only (`RefuseManualStart=yes`, and nothing `Wants=` it), so a restart with a
+bad door.nft keeps the current table rather than dropping to the fallback.
+install.sh also masks Debian's `nftables.service`, whose default config
+starts with `flush ruleset`. Check which table is live with
+`nft list table inet blunix_host`: `set door_v4` is the door ruleset,
+`set ssh_rate_v4` is the fallback.
+
 ## Unattended upgrades
 
 DECISION (Ryan): security updates only, **no automatic reboot**, so a kernel
