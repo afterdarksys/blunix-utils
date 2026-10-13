@@ -1,0 +1,3 @@
+{"apiVersion": "blunix.dev/v1", "kind": "Profile", "name": "a", "name": "b",
+ "disk": "metal-luks", "network": "dhcp-any", "access": "regular", "ai": "default",
+ "update": {"url": "https://updates.blunix.io/blunix", "channel": "stable"}, "sysexts": []}

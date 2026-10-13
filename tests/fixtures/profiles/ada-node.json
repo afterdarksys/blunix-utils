@@ -1,0 +1,3 @@
+{"apiVersion": "blunix.dev/v1", "kind": "Node", "name": "ada", "hostname": "ada-1",
+ "disk": "cloud-vm", "network": "dhcp-any", "access": "large-print", "ai": "default",
+ "update": {"url": "https://updates.blunix.io/blunix", "channel": "stable"}, "sysexts": []}
