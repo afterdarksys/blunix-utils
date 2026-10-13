@@ -17,10 +17,11 @@ from blunix.errors import BlunixError, DecryptError
 from blunix.gui import apply_gui
 from blunix.network import load_network, write_network
 from blunix.node import apply_node, boot_node
+from blunix.profile import check_document, dump, render_node
 from blunix.schema import load_path, models_dir
 from blunix.tools import install_tools, load_tools
 
-_FLAGS = {"--root", "--dest", "--models", "--file"}
+_FLAGS = {"--root", "--dest", "--models", "--file", "--label", "--hostname", "--target", "--format"}
 
 
 def _safe_log(message):
@@ -156,6 +157,25 @@ def _node(rest, opts):
     return 0
 
 
+def _profile(rest, opts):
+    path = opts.get("file")
+    if len(rest) != 1 or not path:
+        raise BlunixError("refused command")
+    if rest[0] == "check":
+        kind, name = check_document(load_path(path), opts.get("models"))
+        print("blunix: " + kind.lower() + " " + name + " accepted", flush=True)
+        return 0
+    if rest[0] == "render":
+        label, hostname = opts.get("label"), opts.get("hostname")
+        if not label or not hostname:
+            raise BlunixError("refused command")
+        node = render_node(load_path(path), label, hostname, opts.get("target"))
+        sys.stdout.write(dump(node, opts.get("format", "yaml")))
+        sys.stdout.flush()
+        return 0
+    raise BlunixError("refused command")
+
+
 def _proxy(rest):
     try:
         import blunix.proxy as proxy
@@ -186,6 +206,9 @@ USAGE = """usage: blunix COMMAND
   gitbuild --help                     source builds and installed product checks
   disk check|render, net render, access boot|render, ai apply, gui apply,
   tools apply, node apply|boot        image and installer steps (see blunix.io/tools)
+  profile check --file FILE           check a Profile or Node document (YAML or JSON)
+  profile render --file FILE --label LABEL --hostname NAME [--target DISK] [--format yaml|json]
+                                      print the Node document for one machine
 With no command, blunix runs the installer bootstrap."""
 
 
@@ -235,6 +258,8 @@ def _dispatch(argv):
         return _tools(rest, opts)
     if group == "node":
         return _node(rest, opts)
+    if group == "profile":
+        return _profile(rest, opts)
     if group == "install":
         return _install(rest, opts)
     raise BlunixError("refused command")

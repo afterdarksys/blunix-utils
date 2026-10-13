@@ -1,0 +1,17 @@
+{
+  "comment": "Shared contract for Profile and Node documents. Every client that accepts a profile (the blunix CLI, the build.blunix.io portal) must give these outcomes. error is the refusal message the CLI prints after 'blunix: '.",
+  "cases": [
+    {"file": "lab-speech.yaml", "kind": "Profile", "ok": true},
+    {"file": "lab-speech.json", "kind": "Profile", "ok": true},
+    {"file": "ada-node.yaml", "kind": "Node", "ok": true},
+    {"file": "ada-node.json", "kind": "Node", "ok": true},
+    {"file": "bad-rocky.yaml", "ok": false, "error": "refused distribution"},
+    {"file": "bad-hostname.yaml", "ok": false, "error": "unknown field"},
+    {"file": "bad-nodisk.yaml", "ok": false, "error": "refused disk"},
+    {"file": "bad-unknown-disk.yaml", "ok": false, "error": "model not found"},
+    {"file": "bad-secret.yaml", "ok": false, "error": "refused field"},
+    {"file": "bad-channel.yaml", "ok": false, "error": "refused channel"},
+    {"file": "bad-kind.yaml", "ok": false, "error": "refused kind"},
+    {"file": "bad-duplicate.json", "ok": false, "error": "duplicate key"}
+  ]
+}

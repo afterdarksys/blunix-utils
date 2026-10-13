@@ -1,0 +1,18 @@
+apiVersion: blunix.dev/v1
+kind: Node
+name: ada
+hostname: ada-1
+disk: metal-luks
+network:
+  match:
+    - "en*"
+  address: 192.0.2.21/24
+  gateway: 192.0.2.1
+  dns:
+    - 192.0.2.53
+access: regular
+ai: default
+update:
+  url: https://updates.blunix.io/blunix
+  channel: stable
+sysexts: []
