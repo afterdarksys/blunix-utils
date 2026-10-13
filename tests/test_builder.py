@@ -808,6 +808,82 @@ class DoorTests(unittest.TestCase):
         self.assertNotRegex(rules, r"\b\d{1,3}(\.\d{1,3}){3}\b")
 
 
+class FirewallFailClosedTests(unittest.TestCase):
+    """A failed door unit must leave the fallback table loaded, never no table."""
+
+    builder = ROOT / "builder"
+
+    def rules(self, name):
+        text = (self.builder / name).read_text()
+        return "\n".join(l for l in text.splitlines() if not l.lstrip().startswith("#"))
+
+    def unit(self, name):
+        return (self.builder / "systemd" / name).read_text()
+
+    def test_lockdown_ruleset_needs_nothing_from_the_host(self):
+        rules = self.rules("nftables-lockdown.conf")
+        self.assertNotIn("include", rules)
+        self.assertNotIn("$", rules)
+        self.assertNotRegex(rules, r"\b\d{1,3}(\.\d{1,3}){3}\b")
+
+    def test_lockdown_replaces_the_same_table_with_inbound_policy_drop(self):
+        rules = self.rules("nftables-lockdown.conf")
+        self.assertIn("delete table inet blunix_host", rules)
+        self.assertIn("type filter hook input priority filter; policy drop;", rules)
+        self.assertIn("type filter hook output priority filter; policy drop;", rules)
+
+    def test_lockdown_opens_only_rate_limited_ipv4_ssh(self):
+        rules = self.rules("nftables-lockdown.conf")
+        start = rules.index("chain input {")
+        body = rules[start:rules.index("\n  }", start)]
+        accepts = [l.strip() for l in body.splitlines() if l.strip().endswith("accept")]
+        self.assertEqual(accepts, [
+            "ct state established,related accept",
+            'iifname "lo" accept',
+            "meta l4proto { icmp, ipv6-icmp } limit rate 10/second accept",
+            "meta nfproto ipv4 tcp dport 22 ct state new update @ssh_rate_v4"
+            " { ip saddr limit rate 10/minute burst 20 packets } accept",
+        ])
+        self.assertRegex(rules, r"set ssh_rate_v4 \{[^}]*\bsize \d+")
+
+    def test_lockdown_keeps_the_door_rulesets_egress(self):
+        def chain(rules, name):
+            start = rules.index(f"chain {name} {{")
+            return rules[start:rules.index("}", rules.index("policy", start))]
+        door, lock = self.rules("nftables.conf"), self.rules("nftables-lockdown.conf")
+        for name in ("output", "forward"):
+            self.assertEqual(chain(door, name), chain(lock, name), name)
+
+    def test_lockdown_unit_loads_first_and_door_unit_follows(self):
+        lock = self.unit("blunix-firewall-lockdown.service")
+        door = self.unit("blunix-firewall.service")
+        self.assertIn("ExecStart=/usr/sbin/nft -f /etc/blunix-builder/nftables-lockdown.conf", lock)
+        self.assertRegex(lock, r"(?m)^Before=.*\bblunix-firewall\.service\b.*\bnetwork-pre\.target\b.*\bdocker\.service\b")
+        self.assertIn("WantedBy=sysinit.target", lock)
+        self.assertNotIn("ExecStartPre", lock)
+        self.assertRegex(door, r"(?m)^After=.*\bblunix-firewall-lockdown\.service\b")
+        self.assertIn("RefuseManualStart=yes", lock)
+
+    def test_restarting_the_door_unit_never_reloads_the_fallback(self):
+        door = self.unit("blunix-firewall.service")
+        lock = self.unit("blunix-firewall-lockdown.service")
+        for key in ("Wants", "Requires", "Requisite", "BindsTo", "PartOf", "Upholds"):
+            self.assertNotRegex(door, rf"(?m)^{key}=.*blunix-firewall-lockdown", key)
+            self.assertNotRegex(lock, rf"(?m)^{key}=.*blunix-firewall\.service", key)
+
+    def test_install_checks_and_enables_both_units(self):
+        sh = (self.builder / "install.sh").read_text()
+        self.assertIn("/etc/blunix-builder/nftables-lockdown.conf", sh)
+        self.assertIn("nft -c -f /etc/blunix-builder/nftables-lockdown.conf", sh)
+        self.assertIn("systemctl enable blunix-firewall-lockdown.service blunix-firewall.service", sh)
+        self.assertIn("systemctl mask nftables.service", sh)
+
+    def test_lockdown_files_are_packaged(self):
+        pkg = (self.builder / "package.sh").read_text()
+        self.assertIn("nftables-lockdown.conf", pkg)
+        self.assertIn("systemd/blunix-firewall-lockdown.service", pkg)
+
+
 class DataDiskTests(unittest.TestCase):
     def test_install_pins_docker_to_the_data_disk_before_installing_it(self):
         sh = (ROOT / "builder" / "install.sh").read_text()
@@ -853,7 +929,7 @@ class DataDiskTests(unittest.TestCase):
         sh = (ROOT / "builder" / "install.sh").read_text()
         fw = sh[sh.index('if [ "$APPLY_FW" -eq 1 ]'):]
         fw = fw[:fw.index("\nfi\n")]
-        self.assertIn("systemctl enable blunix-firewall.service", fw)
+        self.assertRegex(fw, r"(?m)^  systemctl enable blunix-firewall-lockdown\.service blunix-firewall\.service$")
         unit = (ROOT / "builder" / "systemd" / "blunix-firewall.service").read_text()
         self.assertIn("ExecStartPre=/opt/blunix-builder/bin/check-door.sh /etc/blunix-builder/door.nft", unit)
         self.assertIn("Before=network-pre.target docker.service", unit)

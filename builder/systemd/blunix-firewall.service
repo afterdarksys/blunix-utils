@@ -2,8 +2,12 @@
 Description=Blunix builder host firewall (table inet blunix_host)
 Documentation=file:///opt/blunix-builder/HOST.md
 # Load before any network comes up and before Docker adds its own tables.
+# blunix-firewall-lockdown.service loads the fallback table first; this unit
+# replaces it atomically, and a failure here leaves the fallback in place.
+# Ordering only, no Wants=: restarting this unit must never start the fallback,
+# which would replace a working door table with world-reachable SSH.
 DefaultDependencies=no
-After=local-fs.target
+After=local-fs.target blunix-firewall-lockdown.service
 Before=network-pre.target docker.service shutdown.target
 Wants=network-pre.target
 Conflicts=shutdown.target
@@ -12,7 +16,8 @@ Conflicts=shutdown.target
 Type=oneshot
 RemainAfterExit=yes
 # A bad or missing door set fails the unit (visible in systemctl --failed)
-# rather than loading a ruleset that locks the door out.
+# rather than loading a ruleset that locks the door out; the fallback table
+# from blunix-firewall-lockdown.service stays loaded.
 ExecStartPre=/opt/blunix-builder/bin/check-door.sh /etc/blunix-builder/door.nft
 ExecStartPre=/usr/sbin/nft -c -f /etc/blunix-builder/nftables.conf
 ExecStart=/usr/sbin/nft -f /etc/blunix-builder/nftables.conf
