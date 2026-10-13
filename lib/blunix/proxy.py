@@ -47,14 +47,14 @@ from blunix.proxy_site import latest_url, load_site, pinned_url, render_node, va
 _AGE_BINARY = b"age-encryption.org/v1\n"
 _COMMANDS = {
     "init": ({"--api", "--key-file", "--listen", "--config"}, set(), 0),
-    "plan": ({"--config"}, {"--check"}, 1),
+    "plan": ({"--config"}, {"--check", "--explain"}, 1),
     "publish": ({"--config", "--out"}, set(), 1),
     "serve": ({"--config", "--site", "--media", "--sums", "--listen", "--advertise"}, set(), 0),
     "dnsmasq": ({"--config", "--interface", "--range", "--proxy", "--tftp-root"}, set(), 1),
 }
 USAGE = """usage:
   blunix proxy init [--api URL] [--key-file PATH] [--listen HOST:PORT]
-  blunix proxy plan SITE.yaml [--check]
+  blunix proxy plan SITE.yaml [--check] [--explain]
   blunix proxy publish SITE.yaml [--out DIR]
   blunix proxy serve [--site SITE.yaml] [--media DIR [--sums PATH]] [--listen HOST:PORT] [--advertise HOST:PORT]
   blunix proxy dnsmasq SITE.yaml [--interface IF] [--range START,END] [--proxy HOST:PORT] [--tftp-root DIR]
@@ -151,9 +151,48 @@ def _rendered(site, models=None):
     return docs
 
 
+def _explain(site):
+    """One line per setting: its value and where it came from."""
+    for machine in site["machines"]:
+        src = machine["sources"]
+        if machine["dhcp"]:
+            net = "dhcp"
+        else:
+            net = "static " + machine["address"] + " via " + machine["gateway"]
+            net += ", dns " + ", ".join(machine["dns"])
+        match = machine["match"]
+        if match:
+            match_text = ", ".join(match) + " (" + src["match"] + ")"
+        else:
+            match_text = ("en*, eth*" if machine["dhcp"] else "en*") + " (built-in)"
+        rows = [
+            ("disk", machine["disk"], src["disk"]),
+            ("access", machine["access"], src["access"]),
+            ("ai", machine["ai"], src["ai"]),
+            ("update", machine["update"]["url"] + " " + machine["update"]["channel"], src["update"]),
+            ("network", net, src["network"]),
+        ]
+        _say("explain " + machine["label"] + " (machine " + str(machine["index"]) + ", "
+             + machine["mac"] + "):")
+        for name, value, where in rows:
+            _say("  " + name + " " + value + " (" + where + ")")
+        _say("  match " + match_text)
+        if machine["target"]:
+            _say("  target " + machine["target"] + " (machine)")
+    boot, where = site["boot"], site["boot_sources"]
+    _say("explain boot:")
+    _say("  access " + boot["access"] + " (" + where["access"] + ")")
+    _say("  console " + ", ".join(boot["console"]) + " (" + where["console"] + ")")
+    _say("  args " + (" ".join(boot["args"]) or "none") + " (" + where["args"] + ")")
+    _say("  lease " + boot["lease"] + " (" + where["lease"] + ")")
+    _say("  tftp_root " + boot["tftp_root"] + " (" + where["tftp_root"] + "; --tftp-root overrides)")
+
+
 def cmd_plan(path, opts, api=None):
     site = load_site(path)
     _rendered(site)
+    if opts.get("explain"):
+        _explain(site)
     owned = None
     if opts.get("check"):
         owned = (api or _api(opts)).list_labels()

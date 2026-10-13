@@ -8,6 +8,15 @@ the subnet. The build-host check is what keeps `serve` from being an open
 proxy: only `{label}.blnx.io` and `v{n}.{label}.blnx.io` pass, lowercase
 ASCII only. The legacy `name-N.build.blunix.io` form is not relayed.
 
+A site file may name Profile files (`profile:`). A profile path must be
+relative to the site file, stay inside its directory after symlinks resolve,
+and end in .yaml, .yml or .json; it is read with the node document loader.
+Precedence for every node field is machine, then site defaults, then the
+default profile, then the built-in value, and each machine records where each value
+came from so `plan --explain` can say so. A machine's own `profile:` beats
+the site defaults; the site's default profile does not. The `boot:` section only takes
+values that cannot add a line to dnsmasq or a second kernel directive.
+
 What it does not stop: a well-formed site file that maps a MAC to the wrong
 machine. The installer still asks before it erases a disk.
 """
@@ -15,16 +24,18 @@ machine. The installer still asks before it erases a disk.
 from __future__ import annotations
 
 import ipaddress
+import os
 import re
 
 import yaml
 
 from blunix.errors import BlunixError
-from blunix.network import parse_network
+from blunix.network import check_match, parse_network
 from blunix.schema import (
     API_VERSION,
     UniqueKeyLoader,
     load_bytes,
+    load_path,
     require_build_host,
     require_name,
 )
@@ -46,10 +57,34 @@ _MAC_BARE = re.compile(r"[0-9a-f]{12}")
 # Same rule as node.py: a kernel disk name or a serial, never a path.
 _TARGET = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}")
 
-_TOP_KEYS = {"defaults", "machines"}
-_DEFAULT_KEYS = {"disk", "access", "channel", "dns"}
-_MACHINE_KEYS = {"mac", "label", "hostname", "network", "dhcp", "disk", "access", "target"}
+_TOP_KEYS = {"defaults", "machines", "boot"}
+_DEFAULT_KEYS = {"disk", "access", "channel", "dns", "match", "profile"}
+_MACHINE_KEYS = {
+    "mac", "label", "hostname", "network", "dhcp", "disk", "access", "target", "match", "profile",
+}
 _NET_KEYS = {"address", "gateway", "dns"}
+_BOOT_KEYS = {"access", "console", "args", "lease", "tftp_root"}
+_PROFILE_FILE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,200}\.(ya?ml|json)")
+_CONSOLE = re.compile(r"tty[0-9]{1,2}|ttyS[0-9]{1,2}(,[0-9]{4,7}(n8)?)?")
+_ARG = re.compile(r"[a-z][a-z0-9_.-]{0,40}(=[A-Za-z0-9_.,:/+-]{1,80})?")
+_MANAGED_ARGS = {"boot", "fetch", "initrd", "noeject", "console", "blunix.proxy", "blunix.access"}
+_LEASE = re.compile(r"[1-9][0-9]{0,3}[mh]|infinite")
+_TFTP_ROOT = re.compile(r"/[A-Za-z0-9._/-]{0,200}")
+
+# Built-in values, used when no machine entry, site default or profile sets one.
+BUILTIN = {
+    "ai": "default",
+    "update": {"url": UPDATE_URL, "channel": "stable"},
+    "dhcp_match": ["en*", "eth*"],
+    "static_match": ["en*"],
+}
+BOOT_BUILTIN = {
+    "access": "regular",
+    "console": ["tty0", "ttyS0,115200"],
+    "args": [],
+    "lease": "12h",
+    "tftp_root": "/srv/tftp",
+}
 
 
 def check_label(value):
@@ -167,7 +202,98 @@ def _static(net, label, dns, index):
     return parsed
 
 
-def _machine(raw, index, defaults):
+def _load_profile(value, base_dir, index, cache):
+    """Read a Profile named by a site file. Returns (profile, display name)."""
+    from blunix.profile import parse_profile
+
+    if base_dir is None:
+        _fail(index, "profile needs the site file's path; use load_site")
+    if (
+        not isinstance(value, str)
+        or not _PROFILE_FILE.fullmatch(value)
+        or any(part in ("", ".", "..") for part in value.split("/"))
+    ):
+        _fail(index, "refused profile path")
+    root = os.path.realpath(base_dir)
+    path = os.path.realpath(os.path.join(root, value))
+    if os.path.commonpath([root, path]) != root or not os.path.isfile(path):
+        _fail(index, "profile not found inside the site file's directory")
+    if path not in cache:
+        try:
+            cache[path] = parse_profile(load_path(path))
+        except BlunixError as exc:
+            _fail(index, "profile " + value + ": " + str(exc))
+    return cache[path], "profile " + value
+
+
+def _match(value, index):
+    if not isinstance(value, list) or not value or len(value) > 8:
+        _fail(index, "match must be a list of one to eight interface patterns")
+    try:
+        return [check_match(item) for item in value]
+    except BlunixError:
+        _fail(index, "refused match")
+
+
+def _profile_network(profile):
+    """A profile's network, as (dhcp, match) when it is a DHCP network that
+    suits every machine, else None."""
+    net = profile.get("network")
+    if net == "dhcp-any":
+        return True, None
+    if isinstance(net, dict) and net.get("dhcp") is True:
+        return True, list(net.get("match") or [])
+    return None
+
+
+def _pick(name, raw, defaults, profile, builtin, own_profile=False):
+    """Machine first. A machine's own profile beats the site defaults; the
+    site's default profile does not. Then the built-in value."""
+    if name in raw:
+        return raw[name], "machine"
+    order = ["profile", "defaults"] if own_profile else ["defaults", "profile"]
+    for where in order:
+        if where == "defaults" and name in defaults:
+            return defaults[name], defaults["_sources"][name]
+        if where == "profile" and profile is not None and name in profile[0]:
+            return profile[0][name], profile[1]
+    return builtin, "built-in"
+
+
+def parse_boot(raw):
+    """The netboot settings. Returns (boot, sources)."""
+    if raw is None:
+        raw = {}
+    _keys(raw, _BOOT_KEYS, None, "boot")
+    boot = {}
+    sources = {}
+    for key, builtin in BOOT_BUILTIN.items():
+        boot[key] = raw.get(key, builtin)
+        sources[key] = "site boot" if key in raw else "built-in"
+    boot["access"] = _name(boot["access"], None, "boot access")
+    console = boot["console"]
+    if (
+        not isinstance(console, list) or not 1 <= len(console) <= 4
+        or not all(isinstance(c, str) and _CONSOLE.fullmatch(c) for c in console)
+    ):
+        _fail(None, "refused boot console")
+    args = boot["args"]
+    if not isinstance(args, list) or len(args) > 16:
+        _fail(None, "boot args must be a list of at most 16 kernel arguments")
+    for arg in args:
+        if not isinstance(arg, str) or not _ARG.fullmatch(arg):
+            _fail(None, "refused boot arg")
+        if arg.split("=", 1)[0] in _MANAGED_ARGS:
+            _fail(None, "boot arg " + arg.split("=", 1)[0] + " is set by the proxy")
+    if not isinstance(boot["lease"], str) or not _LEASE.fullmatch(boot["lease"]):
+        _fail(None, "refused boot lease")
+    root = boot["tftp_root"]
+    if not isinstance(root, str) or not _TFTP_ROOT.fullmatch(root) or ".." in root:
+        _fail(None, "refused boot tftp_root")
+    return boot, sources
+
+
+def _machine(raw, index, defaults, base_dir=None, cache=None):
     _keys(raw, _MACHINE_KEYS, index, "machine")
     mac_raw = raw.get("mac")
     if not isinstance(mac_raw, str):
@@ -181,16 +307,41 @@ def _machine(raw, index, defaults):
     except BlunixError:
         _fail(index, "refused label")
     hostname = _name(raw.get("hostname"), index, "hostname")
-    disk = _name(raw.get("disk", defaults.get("disk")), index, "disk")
-    access = _name(raw.get("access", defaults.get("access")), index, "access")
+    profile = None
+    own = "profile" in raw
+    if own:
+        profile = _load_profile(raw["profile"], base_dir, index, {} if cache is None else cache)
+    elif defaults.get("_profile") is not None:
+        profile = defaults["_profile"]
+    sources = {}
+    disk, sources["disk"] = _pick("disk", raw, defaults, profile, None, own)
+    disk = _name(disk, index, "disk")
+    access, sources["access"] = _pick("access", raw, defaults, profile, None, own)
+    access = _name(access, index, "access")
+    ai, sources["ai"] = _pick("ai", {}, {"_sources": {}}, profile, BUILTIN["ai"])
+    update, sources["update"] = _pick("update", {}, {"_sources": {}}, profile, BUILTIN["update"])
+    update = dict(update)
+    if "channel" in defaults:
+        update["channel"] = defaults["channel"]
     target = raw.get("target")
     if target is not None:
         if not isinstance(target, str) or not _TARGET.fullmatch(target):
             _fail(index, "refused target")
     has_net = "network" in raw
     has_dhcp = "dhcp" in raw
-    if has_net == has_dhcp:
+    if has_net and has_dhcp:
         _fail(index, "give exactly one of network or dhcp")
+    profile_net = _profile_network(profile[0]) if profile is not None else None
+    match = None
+    profile_match = profile_net[1] if profile_net is not None and profile_net[1] else None
+    if "match" in raw:
+        match, sources["match"] = _match(raw["match"], index), "machine"
+    elif own and profile_match:
+        match, sources["match"] = profile_match, profile[1]
+    elif "match" in defaults:
+        match, sources["match"] = defaults["match"], defaults["_sources"]["match"]
+    elif profile_match:
+        match, sources["match"] = profile_match, profile[1]
     machine = {
         "index": index,
         "mac": mac,
@@ -198,14 +349,27 @@ def _machine(raw, index, defaults):
         "hostname": hostname,
         "disk": disk,
         "access": access,
-        "channel": defaults["channel"],
+        "ai": ai,
+        "update": update,
+        "channel": update["channel"],
         "target": target,
+        "match": match,
+        "profile": profile[1][len("profile "):] if profile is not None else None,
+        "sources": sources,
     }
+    if not has_net and not has_dhcp:
+        if profile_net is None:
+            _fail(index, "give exactly one of network or dhcp")
+        machine["dhcp"] = True
+        sources["network"] = profile[1]
+        return machine
     if has_dhcp:
         if raw.get("dhcp") is not True:
             _fail(index, "dhcp must be true")
         machine["dhcp"] = True
+        sources["network"] = "machine"
         return machine
+    sources["network"] = "machine"
     net = raw.get("network")
     _keys(net, _NET_KEYS, index, "network")
     if "dns" in net:
@@ -224,7 +388,7 @@ def _machine(raw, index, defaults):
     return machine
 
 
-def parse_site(data):
+def parse_site(data, base_dir=None):
     if not isinstance(data, (bytes, bytearray)):
         _fail(None, "not readable")
     if len(data) > MAX_SITE:
@@ -242,14 +406,24 @@ def parse_site(data):
     _keys(doc, _TOP_KEYS, None, "top level")
     raw_defaults = doc.get("defaults", {})
     _keys(raw_defaults, _DEFAULT_KEYS, None, "defaults")
-    defaults = {"channel": raw_defaults.get("channel", "stable")}
-    if defaults["channel"] != "stable":
-        _fail(None, "refused channel")
+    defaults = {"_sources": {}, "_profile": None}
+    if "channel" in raw_defaults:
+        if raw_defaults["channel"] != "stable":
+            _fail(None, "refused channel")
+        defaults["channel"] = "stable"
     for key in ("disk", "access"):
         if key in raw_defaults:
             defaults[key] = _name(raw_defaults[key], None, key)
+            defaults["_sources"][key] = "defaults"
     if "dns" in raw_defaults:
         defaults["dns"] = _dns(raw_defaults["dns"], None)
+    if "match" in raw_defaults:
+        defaults["match"] = _match(raw_defaults["match"], None)
+        defaults["_sources"]["match"] = "defaults"
+    cache = {}
+    if "profile" in raw_defaults:
+        defaults["_profile"] = _load_profile(raw_defaults["profile"], base_dir, None, cache)
+    boot, boot_sources = parse_boot(doc.get("boot"))
     machines = doc.get("machines")
     if not isinstance(machines, list) or not machines:
         _fail(None, "machines must be a non-empty list")
@@ -258,7 +432,7 @@ def parse_site(data):
     seen = {"mac": set(), "label": set(), "hostname": set(), "address": set()}
     out = []
     for index, raw in enumerate(machines, 1):
-        machine = _machine(raw, index, defaults)
+        machine = _machine(raw, index, defaults, base_dir, cache)
         for key in ("mac", "label", "hostname"):
             if machine[key] in seen[key]:
                 _fail(index, "duplicate " + key)
@@ -269,7 +443,8 @@ def parse_site(data):
                 _fail(index, "duplicate address")
             seen["address"].add(addr)
         out.append(machine)
-    return {"defaults": defaults, "machines": out}
+    public = {k: v for k, v in defaults.items() if not k.startswith("_")}
+    return {"defaults": public, "machines": out, "boot": boot, "boot_sources": boot_sources}
 
 
 def load_site(path):
@@ -278,20 +453,22 @@ def load_site(path):
             data = handle.read(MAX_SITE + 1)
     except OSError:
         raise BlunixError("site file unreadable") from None
-    return parse_site(data)
+    return parse_site(data, os.path.dirname(os.path.abspath(path)))
 
 
 def render_node(machine):
     """The node document for one machine, using the inline network form."""
+    match = machine.get("match")
     if machine["dhcp"]:
-        network = "dhcp-any"
+        network = {"match": list(match), "dhcp": True} if match else "dhcp-any"
     else:
         network = {
-            "match": ["en*"],
+            "match": list(match or BUILTIN["static_match"]),
             "address": machine["address"],
             "gateway": machine["gateway"],
             "dns": list(machine["dns"]),
         }
+    update = machine.get("update") or BUILTIN["update"]
     doc = {
         "apiVersion": API_VERSION,
         "kind": "Node",
@@ -300,8 +477,8 @@ def render_node(machine):
         "disk": machine["disk"],
         "network": network,
         "access": machine["access"],
-        "ai": "default",
-        "update": {"url": UPDATE_URL, "channel": machine["channel"]},
+        "ai": machine.get("ai", BUILTIN["ai"]),
+        "update": {"url": update["url"], "channel": update["channel"]},
         "sysexts": [],
     }
     if machine.get("target"):
@@ -312,6 +489,7 @@ def render_node(machine):
 def validate_node(machine, data, models=None):
     """Parse the rendered document with the installer's own rules."""
     from blunix.access import load_access
+    from blunix.ai import load_ai
     from blunix.disk import load_disk
     from blunix.node import parse_node
     from blunix.schema import models_dir
@@ -321,6 +499,7 @@ def validate_node(machine, data, models=None):
         root = models_dir(models)
         load_disk(root, parsed["disk"])
         load_access(root, parsed["access"])
+        load_ai(root, parsed["ai"])
     except BlunixError as exc:
         _fail(machine["index"], "node document refused: " + str(exc))
     return parsed
