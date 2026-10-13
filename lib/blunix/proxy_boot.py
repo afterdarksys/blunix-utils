@@ -24,17 +24,24 @@ _IFACE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,14}")
 _TFTP_ROOT = re.compile(r"/[A-Za-z0-9._/-]{0,200}")
 
 
-def render_ipxe(advertise):
-    """advertise is a validated HOST:PORT the booting machine can reach."""
+def render_ipxe(advertise, boot=None):
+    """advertise is a validated HOST:PORT the booting machine can reach.
+    boot is a site file's parsed `boot:` section, or None for the built-ins."""
+    from blunix.proxy_site import BOOT_BUILTIN
+
+    boot = boot or BOOT_BUILTIN
     base = "http://" + advertise
+    args = [
+        "boot=live", "noeject", "fetch=" + base + "/media/blunix.squashfs",
+        "blunix.proxy=" + advertise, "blunix.access=" + boot["access"],
+    ]
+    args += ["console=" + c for c in boot["console"]]
+    args += list(boot["args"])
     return "\n".join(
         [
             "#!ipxe",
             "echo blunix: netboot from the build proxy at " + advertise,
-            "kernel " + base + "/media/vmlinuz initrd=initrd.img"
-            + " boot=live noeject fetch=" + base + "/media/blunix.squashfs"
-            + " blunix.proxy=" + advertise
-            + " blunix.access=regular console=tty0 console=ttyS0,115200",
+            "kernel " + base + "/media/vmlinuz initrd=initrd.img " + " ".join(args),
             "initrd " + base + "/media/initrd.img",
             "boot",
             "",
@@ -56,9 +63,13 @@ def _range(value):
     return str(start), str(end)
 
 
-def render_dnsmasq(site, advertise, interface=None, dhcp_range=None, tftp_root="/srv/tftp"):
+def render_dnsmasq(site, advertise, interface=None, dhcp_range=None, tftp_root=None):
     if interface is not None and not _IFACE.fullmatch(interface):
         raise BlunixError("refused interface")
+    boot = site.get("boot") or {}
+    lease = boot.get("lease", "12h")
+    if tftp_root is None:
+        tftp_root = boot.get("tftp_root", "/srv/tftp")
     if not _TFTP_ROOT.fullmatch(tftp_root) or ".." in tftp_root:
         raise BlunixError("refused tftp root")
     lines = [
@@ -71,7 +82,7 @@ def render_dnsmasq(site, advertise, interface=None, dhcp_range=None, tftp_root="
         lines += ["interface=" + interface, "bind-interfaces"]
     if dhcp_range:
         start, end = _range(dhcp_range)
-        lines.append("dhcp-range=" + start + "," + end + ",12h")
+        lines.append("dhcp-range=" + start + "," + end + "," + lease)
     else:
         nets = []
         for machine in site["machines"]:
@@ -83,7 +94,7 @@ def render_dnsmasq(site, advertise, interface=None, dhcp_range=None, tftp_root="
             raise BlunixError("every machine uses dhcp; give --range START,END")
         for net in nets:
             lines.append(
-                "dhcp-range=" + str(net.network_address) + ",static," + str(net.netmask) + ",12h"
+                "dhcp-range=" + str(net.network_address) + ",static," + str(net.netmask) + "," + lease
             )
     lines.append("")
     for machine in site["machines"]:
@@ -99,7 +110,7 @@ def render_dnsmasq(site, advertise, interface=None, dhcp_range=None, tftp_root="
             continue
         lines.append(
             "dhcp-host=" + machine["mac"] + ",set:" + tag + "," + str(addr.ip)
-            + "," + machine["hostname"] + ",12h"
+            + "," + machine["hostname"] + "," + lease
         )
         lines.append("dhcp-option=tag:" + tag + ",option:router," + machine["gateway"])
         dns4 = [d for d in machine["dns"] if ipaddress.ip_address(d).version == 4]

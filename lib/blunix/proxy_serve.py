@@ -384,7 +384,7 @@ class _Handler(BaseHTTPRequestHandler):
             )
             self._send(404)
             return
-        self._send(200, render_ipxe(advertise).encode("ascii"))
+        self._send(200, render_ipxe(advertise, self.server.boot).encode("ascii"))
 
     def _media(self, name):
         root = self.server.media
@@ -438,6 +438,7 @@ class ProxyServer(ThreadingHTTPServer):
                  fetcher=None, limiter=None, log=None, sums=None,
                  max_connections=MAX_CONNECTIONS):
         self.machines = {m["mac"]: m for m in site["machines"]} if site else {}
+        self.boot = site.get("boot") if site else None
         self.media_ids = {}
         if media is not None:
             media = os.path.realpath(media)
