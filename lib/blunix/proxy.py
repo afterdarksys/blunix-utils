@@ -170,6 +170,7 @@ def _explain(site):
             ("access", machine["access"], src["access"]),
             ("ai", machine["ai"], src["ai"]),
             ("update", machine["update"]["url"] + " " + machine["update"]["channel"], src["update"]),
+            ("packages", ", ".join(machine["packages"]) or "none", src["packages"]),
             ("network", net, src["network"]),
         ]
         _say("explain " + machine["label"] + " (machine " + str(machine["index"]) + ", "

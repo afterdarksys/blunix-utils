@@ -4,7 +4,9 @@ node.yaml or bootstrap-complete.
 
 `network:` is a model name or an inline mapping checked by the same network
 parser. `target:` is optional and only names a disk for the installer; it is a
-kernel name or a serial, never a path.
+kernel name or a serial, never a path. `packages:`, `admin:` and `install:` are
+the personal build fields in blunix.personal; provisioning runs before
+bootstrap-complete is written, so a failed provision never looks finished.
 
 The document is unsigned in this spike. apply says so on the log callback.
 Signing is still open. This module does not invent a signature.
@@ -23,6 +25,7 @@ from blunix.cmd import run_cmd
 from blunix.disk import load_disk, render_disk, write_disk
 from blunix.errors import BlunixError
 from blunix.network import parse_inline_network, resolve_network, write_network
+from blunix.personal import parse_admin, parse_install, parse_packages, provision
 from blunix.schema import (
     load_bytes,
     load_path,
@@ -47,6 +50,9 @@ _NODE_KEYS = {
     "update",
     "sysexts",
     "target",
+    "packages",
+    "admin",
+    "install",
 }
 _UPDATE_KEYS = {"url", "channel"}
 _TARGET = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}")
@@ -110,6 +116,9 @@ def parse_node(doc):
         "ai": ai,
         "update": update,
         "target": _target(doc.get("target")),
+        "packages": parse_packages(doc.get("packages")),
+        "admin": parse_admin(doc.get("admin")),
+        "install": parse_install(doc.get("install"), _target(doc.get("target"))),
     }
 
 
@@ -181,6 +190,7 @@ def apply_node(doc, root, models=None, log=None):
     access = checked["access"]
     ai = checked["ai"]
     dumped = checked["dumped"]
+    provision(root, parsed["packages"], parsed["admin"], log=log)
     write_disk(disk, os.path.join(root, "usr", "lib", "repart.d"))
     write_network(network, os.path.join(root, "run", "systemd", "network"))
     plan = apply_access(access, root, log=log)

@@ -879,7 +879,10 @@ class _Flow:
             chosen = good[0]
         else:
             chosen = self.choose(good)
-        if chosen["used"] or target is None:
+        if checked["parsed"].get("install") is not None:
+            # The document carries written permission to erase this exact disk.
+            self.say("blunix: the document authorizes erasing disk " + describe(chosen) + ".")
+        elif chosen["used"] or target is None:
             question = "blunix: erase disk " + describe(chosen) + ". Say yes to erase."
             if not self.yes(question):
                 raise _Stop("blunix: disk " + chosen["name"] + " kept. " + NOTHING)
@@ -966,6 +969,14 @@ class _Flow:
             self.say("blunix: document sha256 " + digest + ". Compare it with the install card.")
         disk = self.disk(checked, image)
         self.install(plain, parsed, image, disk)
+        unattended = parsed.get("install")
+        if unattended is not None:
+            if unattended["reboot"]:
+                self.say("blunix: installed " + parsed["hostname"] + ". Remove the stick. Rebooting.")
+                self.h.reboot()
+            else:
+                self.say("blunix: installed " + parsed["hostname"] + ". Remove the stick. Not rebooting.")
+            return 0
         if self.yes("blunix: installed " + parsed["hostname"] + ". Remove the stick. Say yes to reboot."):
             self.h.reboot()
         else:

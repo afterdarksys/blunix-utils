@@ -1,0 +1,13 @@
+apiVersion: blunix.dev/v1
+kind: Profile
+name: lab-tools
+disk: cloud-vm
+network: dhcp-any
+access: regular
+ai: default
+update:
+  url: https://updates.blunix.io/blunix
+  channel: stable
+sysexts: []
+packages: [git, tmux, vim]
+admin: {name: operator, sshPublicKey: x}
