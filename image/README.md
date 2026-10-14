@@ -11,7 +11,7 @@ Build scripts for the Blunix spike. Each one runs itself inside `docker run --pr
 | `boot-installer-test.sh [uefi\|bios]` | Boots the ISO headless in QEMU against a blank disk and answers the first prompts over serial. Log: `build/installer/serial.log`. |
 | `run-unit-tests.sh` | The unit tests, in Debian 13 with `age` and `zstd`. |
 | `ipxe/build-ipxe.sh` | `build/ipxe/undionly.kpxe` (BIOS PXE) and `build/ipxe/ipxe.efi` (UEFI), from iPXE v2.0.0 at a checked commit, with HTTPS on and `ipxe/embed.ipxe` built in. In Docker. |
-| `test-netboot-qemu.sh [MEDIA_DIR]` | Boots a diskless BIOS VM from the network: only `undionly.kpxe` comes over TFTP, then the boot script, kernel, initrd and the whole image come over http from `blunix proxy serve` into RAM. Passes when the installer asks its first question. |
+| `test-netboot-qemu.sh [MEDIA_DIR] [--prefill] [--uefi-disk]` | Boots a diskless VM from the network: only the iPXE loader comes over TFTP (BIOS), then the boot script, kernel, initrd and the whole image come over http from `blunix proxy serve` into RAM. Passes when the installer asks its first question. `--prefill` lists the VM in a site file and expects the installer to offer its build address; `--uefi-disk` starts `ipxe.efi` under UEFI from a FAT disk instead of firmware PXE. |
 | `scan-raw-explain.py locate IMAGE` / `blocks FILE [--member PATH]` | Explains a refused raw scan: each hit's offset, kind, and the file (or free space) that holds it; and every PEM private-key block in a file with its SHA-256 and allowlist state. Prints no key bytes. See "When the raw scan refuses". |
 | `gpl-sources.py VERSION STATUS...` | `SOURCES.md` for a release: every Debian source package and exact version from the artifacts' dpkg status files, with snapshot.debian.org links and the written offer. Attach it to every release. |
 
@@ -65,7 +65,9 @@ How a machine gets there, with as little TFTP as possible:
 
 The loader's built-in script (`ipxe/embed.ipxe`) gets an address and chains the boot script the DHCP server names. When the DHCP server does not know iPXE and names the loader itself, it chains `http://NEXT-SERVER:8750/v1/boot.ipxe`.
 
-`test-netboot-qemu.sh` proves the BIOS path end to end. A UEFI run is not there yet: OVMF under QEMU on macOS went to the EFI shell without trying the network.
+A machine the site file lists by MAC gets its own script (`/v1/boot/MAC.ipxe`): the installer offers its build address (`blunix.build=`) and waits for yes, and boots in that machine's access profile, so a speech machine speaks from the first prompt. Then only the key is typed.
+
+`test-netboot-qemu.sh` proves BIOS PXE, the address offer, and UEFI with `ipxe.efi` (started from a FAT disk), each end to end. Not proven: UEFI firmware PXE and UEFI HTTP Boot themselves, because OVMF in QEMU went to the EFI shell without offering the network, on macOS and in a Debian container alike. `undionly.kpxe` builds byte for byte the same each time; `ipxe.efi` does not yet.
 
 ### Raw image for VMware, QEMU, or a cloud
 

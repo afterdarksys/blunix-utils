@@ -342,6 +342,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._send(200, b"ok\n")
         elif path == "/v1/boot.ipxe":
             self._boot()
+        elif path.startswith("/v1/boot/") and path.endswith(".ipxe"):
+            self._boot(path[len("/v1/boot/"):-len(".ipxe")])
         elif path.startswith("/v1/build/"):
             self._build(path[len("/v1/build/"):])
         elif path.startswith("/v1/netconfig/"):
@@ -378,7 +380,7 @@ class _Handler(BaseHTTPRequestHandler):
         ).encode("utf-8")
         self._send(200, body, "application/json")
 
-    def _boot(self):
+    def _boot(self, mac=None):
         advertise = self.server.advertise
         if advertise is None:
             self.server.log(
@@ -386,7 +388,17 @@ class _Handler(BaseHTTPRequestHandler):
             )
             self._send(404)
             return
-        self._send(200, render_ipxe(advertise, self.server.boot).encode("ascii"))
+        machine = None
+        if mac is not None:
+            try:
+                machine = self.server.machines.get(normalize_mac(mac))
+            except BlunixError:
+                machine = None
+            if machine is None:
+                self._send(404)
+                return
+        body = render_ipxe(advertise, self.server.boot, machine, per_machine=bool(self.server.machines))
+        self._send(200, body.encode("ascii"))
 
     def _media(self, name):
         root = self.server.media

@@ -5,14 +5,23 @@
 # `blunix proxy serve`, into RAM. It passes when the installer asks its first
 # question on the serial console. Nothing is written anywhere but a temp dir.
 #
-#   image/test-netboot-qemu.sh [MEDIA_DIR]
+#   image/test-netboot-qemu.sh [MEDIA_DIR] [--prefill] [--uefi-disk]
 #
-# BIOS only: undionly.kpxe. MEDIA_DIR defaults to build/installer/media (vmlinuz,
+# --uefi-disk boots ipxe.efi under UEFI (QEMU's edk2) from a small FAT disk as
+# EFI/BOOT/BOOTX64.EFI, then the same http chain. It proves the UEFI loader and
+# everything after it; it skips firmware PXE, which OVMF in QEMU did not offer
+# here (macOS and a Debian container both went to the EFI shell).
+#
+# With --prefill the proxy gets a site file that lists the VM's MAC as label
+# "qemu-test" with full speech: the VM must chain its per-machine script and the
+# installer must offer qemu-test.blnx.io and wait for yes. Exit 3 means the
+# proxy side worked but the media's installer is older than the offer.
+#
+# Default BIOS: undionly.kpxe over TFTP. MEDIA_DIR defaults to build/installer/media (vmlinuz,
 # initrd.img, blunix.squashfs). The loader comes from build/ipxe/
 # (image/ipxe/build-ipxe.sh). Needs qemu-system-x86_64 and bash 4 or newer. Port
 # 8750 must be free: the loader falls back to the next-server on that port.
-# A UEFI run (ipxe.efi) is not here yet: OVMF under QEMU on macOS went to the EFI
-# shell without trying the network, with both the QEMU and the Debian firmware.
+
 # Apple's /bin/bash is 3.2. Re-run under bash 4 or newer when one is installed.
 if [ -z "${BASH_VERSINFO:-}" ] || [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
   for candidate in /usr/local/bin/bash /opt/homebrew/bin/bash /opt/local/bin/bash; do
@@ -25,10 +34,22 @@ if [ -z "${BASH_VERSINFO:-}" ] || [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
 fi
 set -euo pipefail
 cd "$(dirname "$0")/.."
-MEDIA="$(cd "${1:-build/installer/media}" && pwd)"
+PREFILL=0
+UEFI=0
+ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    --prefill) PREFILL=1 ;;
+    --uefi-disk) UEFI=1 ;;
+    *) ARGS+=("$arg") ;;
+  esac
+done
+MEDIA="$(cd "${ARGS[0]:-build/installer/media}" && pwd)"
+MAC=52:54:00:12:34:56
 PORT=8750
 TIMEOUT=300
 LOADER=undionly.kpxe
+[ "$UEFI" = 1 ] && LOADER=ipxe.efi
 for f in vmlinuz initrd.img blunix.squashfs; do
   [ -f "$MEDIA/$f" ] || { echo "blunix: $MEDIA/$f is missing; build the installer first"; exit 2; }
 done
@@ -45,9 +66,24 @@ trap cleanup EXIT
 (cd "$MEDIA" && shasum -a 256 vmlinuz initrd.img blunix.squashfs 2>/dev/null || sha256sum vmlinuz initrd.img blunix.squashfs) > "$WORK/SHA256SUMS"
 cp "build/ipxe/$LOADER" "$WORK/$LOADER"
 
+SITE_ARGS=()
+EXPECT="blunix: build hostname."
+if [ "$PREFILL" = 1 ]; then
+  cat > "$WORK/site.yaml" <<SITE
+defaults: {disk: cloud-vm, access: full-speech}
+machines:
+  - mac: "$MAC"
+    label: qemu-test
+    hostname: qemu-test
+    dhcp: true
+SITE
+  SITE_ARGS=(--site "$WORK/site.yaml")
+  EXPECT="blunix: the build proxy offers qemu-test.blnx.io. Say yes to use it."
+fi
+
 # 10.0.2.2 is the host as QEMU's user network sees it.
 PYTHONPATH=lib python3 -m blunix proxy serve --listen "127.0.0.1:$PORT" --advertise "10.0.2.2:$PORT" \
-  --media "$MEDIA" --sums "$WORK/SHA256SUMS" > "$WORK/proxy.log" 2>&1 &
+  --media "$MEDIA" --sums "$WORK/SHA256SUMS" ${SITE_ARGS[@]+"${SITE_ARGS[@]}"} > "$WORK/proxy.log" 2>&1 &
 PROXY_PID=$!
 for _ in $(seq 1 60); do
   curl -sf -o /dev/null "http://127.0.0.1:$PORT/v1/boot.ipxe" && break
@@ -55,22 +91,42 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 
-qemu-system-x86_64 -accel "$ACCEL" -m 3072 -machine pc -display none \
-  -netdev "user,id=n0,tftp=$WORK,bootfile=$LOADER" -device e1000,netdev=n0 -boot n \
+if [ "$UEFI" = 1 ]; then
+  code="$(dirname "$(dirname "$(command -v qemu-system-x86_64)")")/share/qemu/edk2-x86_64-code.fd"
+  [ -f "$code" ] || { echo "blunix: no edk2 firmware at $code"; exit 2; }
+  mkdir -p "$WORK/esp/EFI/BOOT"
+  cp "build/ipxe/ipxe.efi" "$WORK/esp/EFI/BOOT/BOOTX64.EFI"
+  MACHINE_ARGS=(-machine q35 -drive "if=pflash,format=raw,readonly=on,file=$code"
+    -drive "file=fat:rw:$WORK/esp,format=raw,if=none,id=esp" -device ide-hd,drive=esp,bootindex=0
+    -device virtio-net-pci,netdev=n0,mac="$MAC")
+else
+  MACHINE_ARGS=(-machine pc -device e1000,netdev=n0,mac="$MAC" -boot n)
+fi
+qemu-system-x86_64 -accel "$ACCEL" -m 3072 -display none \
+  -netdev "user,id=n0,tftp=$WORK,bootfile=$LOADER" "${MACHINE_ARGS[@]}" \
   -serial "file:$WORK/serial.log" &
 QEMU_PID=$!
 
 result=FAIL
 for _ in $(seq 1 "$TIMEOUT"); do
-  if grep -aq "blunix: build hostname." "$WORK/serial.log" 2>/dev/null; then result=PASS; break; fi
+  if grep -aqF "$EXPECT" "$WORK/serial.log" 2>/dev/null; then result=PASS; break; fi
+  if [ "$PREFILL" = 1 ] && grep -aq "blunix: build hostname." "$WORK/serial.log" 2>/dev/null; then break; fi
   grep -aqE "netboot failed|Kernel panic" "$WORK/serial.log" 2>/dev/null && break
   kill -0 "$QEMU_PID" 2>/dev/null || break
   sleep 1
 done
 echo "--- proxy"
 grep -E "GET /(media|v1)" "$WORK/proxy.log" || true
+[ "$PREFILL" = 1 ] && { grep -aE "blunix.access=|blunix.build=" "$WORK/serial.log" | head -2 || true; }
 echo "--- serial"
 tr -d '\r' < "$WORK/serial.log" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' \
   | grep -aE "^iPXE [0-9]|^blunix|blunix:|tftp://|http://[^ ]*\.\.\.|Trying wget" || true
-echo "blunix: netboot bios: $result"
+if [ "$PREFILL" = 1 ] && [ "$result" = FAIL ] \
+   && grep -aq "blunix.access=full-speech blunix.build=qemu-test.blnx.io" "$WORK/serial.log" \
+   && grep -aq "blunix: build hostname." "$WORK/serial.log"; then
+  # The proxy did its part; the installer inside this media is older than the offer.
+  echo "blunix: netboot bios --prefill: PROXY-ONLY. The per-machine script reached the kernel, but this media's installer predates blunix.build; rebuild the installer media to test the offer."
+  exit 3
+fi
+echo "blunix: netboot $([ "$UEFI" = 1 ] && echo uefi-disk || echo bios)$([ "$PREFILL" = 1 ] && echo ' --prefill'): $result"
 [ "$result" = PASS ]
