@@ -1,5 +1,5 @@
 {
-  "comment": "Shared contract for Profile and Node documents. Every client that accepts a profile (the blunix CLI, the build.blunix.io portal) must give these outcomes. error is the refusal message the CLI prints after 'blunix: '. Personal build cases (admin, install, packages) are YAML until the portal can show those fields; JSON copies join when it can.",
+  "comment": "Shared contract for Profile and Node documents. Every client that accepts a profile (the blunix CLI, the build.blunix.io portal) must give these outcomes. error is the refusal message the CLI prints after 'blunix: '. Personal build cases have YAML and JSON copies with the same outcome.",
   "cases": [
     {"file": "lab-speech.yaml", "kind": "Profile", "ok": true},
     {"file": "lab-speech.json", "kind": "Profile", "ok": true},
@@ -22,6 +22,15 @@
     {"file": "bad-admin-options.yaml", "ok": false, "error": "refused public key"},
     {"file": "bad-packages-unknown.yaml", "ok": false, "error": "refused packages"},
     {"file": "bad-packages-option.yaml", "ok": false, "error": "refused packages"},
-    {"file": "bad-profile-admin.yaml", "ok": false, "error": "unknown field"}
+    {"file": "bad-profile-admin.yaml", "ok": false, "error": "unknown field"},
+    {"file": "personal-node.json", "kind": "Node", "ok": true},
+    {"file": "profile-packages.json", "kind": "Profile", "ok": true},
+    {"file": "bad-admin-root.json", "ok": false, "error": "refused admin"},
+    {"file": "bad-admin-rsa.json", "ok": false, "error": "refused public key"},
+    {"file": "bad-admin-options.json", "ok": false, "error": "refused public key"},
+    {"file": "bad-install-no-target.json", "ok": false, "error": "refused install"},
+    {"file": "bad-install-no-erase.json", "ok": false, "error": "refused install"},
+    {"file": "bad-packages-option.json", "ok": false, "error": "refused packages"},
+    {"file": "bad-profile-admin.json", "ok": false, "error": "unknown field"}
   ]
 }
