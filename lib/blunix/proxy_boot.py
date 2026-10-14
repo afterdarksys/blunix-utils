@@ -20,6 +20,9 @@ import re
 from blunix.errors import BlunixError
 
 MEDIA_FILES = ("vmlinuz", "initrd.img", "blunix.squashfs")
+# iPXE loaders (image/ipxe/build-ipxe.sh). Served over http from --media when
+# SHA256SUMS lists them, so UEFI HTTP Boot needs no TFTP.
+LOADER_FILES = ("undionly.kpxe", "ipxe.efi")
 _IFACE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,14}")
 _TFTP_ROOT = re.compile(r"/[A-Za-z0-9._/-]{0,200}")
 
@@ -68,6 +71,7 @@ def render_dnsmasq(site, advertise, interface=None, dhcp_range=None, tftp_root=N
         raise BlunixError("refused interface")
     boot = site.get("boot") or {}
     lease = boot.get("lease", "12h")
+    tftp = boot.get("tftp", True)
     if tftp_root is None:
         tftp_root = boot.get("tftp_root", "/srv/tftp")
     if not _TFTP_ROOT.fullmatch(tftp_root) or ".." in tftp_root:
@@ -118,15 +122,30 @@ def render_dnsmasq(site, advertise, interface=None, dhcp_range=None, tftp_root=N
             lines.append("dhcp-option=tag:" + tag + ",option:dns-server," + ",".join(dns4))
     lines += [
         "",
+        "# iPXE fetches its boot script, kernel, initrd and the whole image over http.",
         "dhcp-match=set:ipxe,175",
-        "dhcp-match=set:efi64,option:client-arch,7",
-        "dhcp-match=set:efi64,option:client-arch,9",
         "dhcp-boot=tag:known,tag:ipxe,http://" + advertise + "/v1/boot.ipxe",
-        "dhcp-boot=tag:known,tag:!ipxe,tag:efi64,ipxe.efi",
-        "dhcp-boot=tag:known,tag:!ipxe,tag:!efi64,undionly.kpxe",
-        "enable-tftp",
-        "tftp-root=" + tftp_root,
-        "tftp-secure",
-        "",
+        "# UEFI HTTP Boot (client arch 16) loads ipxe.efi over http: no TFTP at all.",
+        "dhcp-match=set:efihttp,option:client-arch,16",
+        "dhcp-option-force=tag:efihttp,60,HTTPClient",
+        "dhcp-boot=tag:known,tag:!ipxe,tag:efihttp,http://" + advertise + "/media/ipxe.efi",
     ]
+    if tftp:
+        lines += [
+            "# Classic PXE firmware can only fetch its first file over TFTP: the loader only.",
+            "dhcp-match=set:efi64,option:client-arch,7",
+            "dhcp-match=set:efi64,option:client-arch,9",
+            "dhcp-boot=tag:known,tag:!ipxe,tag:!efihttp,tag:efi64,ipxe.efi",
+            "dhcp-boot=tag:known,tag:!ipxe,tag:!efihttp,tag:!efi64,undionly.kpxe",
+            "enable-tftp",
+            "tftp-root=" + tftp_root,
+            "tftp-secure",
+        ]
+    else:
+        lines += [
+            "# TFTP is off (boot.tftp: false). BIOS PXE and UEFI PXE firmware without",
+            "# HTTP Boot cannot start here; machines that already run iPXE and UEFI",
+            "# HTTP Boot machines can.",
+        ]
+    lines.append("")
     return "\n".join(lines)
