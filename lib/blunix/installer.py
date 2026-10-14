@@ -284,6 +284,26 @@ def parse_proxy(cmdline):
     return check_proxy(found)
 
 
+def parse_build(cmdline):
+    """`blunix.build=HOST` from the kernel command line, or None. The build-proxy
+    puts it there for a machine it knows by MAC. It only offers an address: the
+    installer still reads it back and waits for yes, and the key is still typed."""
+    if not isinstance(cmdline, str):
+        return None
+    found = None
+    for token in cmdline.split():
+        if token.startswith("blunix.build="):
+            if found is not None:
+                raise BlunixError("refused build address")
+            found = token[len("blunix.build="):]
+    if found is None:
+        return None
+    try:
+        return require_build_host(found)
+    except BlunixError:
+        raise BlunixError("refused build address") from None
+
+
 def check_proxy(value):
     if not isinstance(value, str) or len(value) > 262:
         raise BlunixError("refused proxy")
@@ -822,7 +842,10 @@ class _Flow:
             return True
         return False
 
-    def hostname(self):
+    def hostname(self, offered=None):
+        if offered is not None:
+            if self.yes("blunix: the build proxy offers " + offered + ". Say yes to use it."):
+                return offered
         for _ in range(3):
             typed = self.ask(ASK_HOST).lower()
             try:
@@ -954,10 +977,15 @@ class _Flow:
             proxy = parse_proxy(self.h.cmdline())
         except BlunixError:
             raise _Stop("blunix: refused proxy. " + NOTHING)
+        try:
+            offered = parse_build(self.h.cmdline())
+        except BlunixError:
+            offered = None
+            self.say("blunix: refused the offered build address.")
         self.network()
         if proxy is not None:
             self.say("blunix: using the proxy at " + proxy + ".")
-        host = self.hostname()
+        host = self.hostname(offered)
         typed = self.key()
         ciphertext = self.fetch(host, proxy)
         plain, checked = self.document(ciphertext, typed)

@@ -27,29 +27,47 @@ _IFACE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,14}")
 _TFTP_ROOT = re.compile(r"/[A-Za-z0-9._/-]{0,200}")
 
 
-def render_ipxe(advertise, boot=None):
+def render_ipxe(advertise, boot=None, machine=None, per_machine=False):
     """advertise is a validated HOST:PORT the booting machine can reach.
-    boot is a site file's parsed `boot:` section, or None for the built-ins."""
-    from blunix.proxy_site import BOOT_BUILTIN
+    boot is a site file's parsed `boot:` section, or None for the built-ins.
+
+    With per_machine (a site is loaded), the script first asks for
+    /v1/boot/MAC.ipxe; a MAC the site lists gets that machine's script, any
+    other gets 404 and falls through to the generic boot below. With machine,
+    this is that per-machine script: it offers the machine's build address
+    (blunix.build=, which the installer still reads back and confirms) and
+    boots the installer in the machine's own access profile, so a speech
+    machine speaks from the first prompt."""
+    from blunix.proxy_site import BOOT_BUILTIN, latest_url
 
     boot = boot or BOOT_BUILTIN
     base = "http://" + advertise
+    access = machine["access"] if machine is not None else boot["access"]
     args = [
         "boot=live", "noeject", "fetch=" + base + "/media/blunix.squashfs",
-        "blunix.proxy=" + advertise, "blunix.access=" + boot["access"],
+        "blunix.proxy=" + advertise, "blunix.access=" + access,
     ]
+    if machine is not None:
+        args.append("blunix.build=" + latest_url(machine["label"])[len("https://"):-1])
     args += ["console=" + c for c in boot["console"]]
     args += list(boot["args"])
-    return "\n".join(
-        [
-            "#!ipxe",
-            "echo blunix: netboot from the build proxy at " + advertise,
-            "kernel " + base + "/media/vmlinuz initrd=initrd.img " + " ".join(args),
-            "initrd " + base + "/media/initrd.img",
-            "boot",
-            "",
-        ]
-    )
+    lines = ["#!ipxe"]
+    if machine is not None:
+        lines.append("echo blunix: netboot for " + machine["label"] + " from the build proxy at " + advertise)
+    else:
+        lines.append("echo blunix: netboot from the build proxy at " + advertise)
+        if per_machine:
+            lines += [
+                "chain " + base + "/v1/boot/${netX/mac:hexhyp}.ipxe || goto generic",
+                ":generic",
+            ]
+    lines += [
+        "kernel " + base + "/media/vmlinuz initrd=initrd.img " + " ".join(args),
+        "initrd " + base + "/media/initrd.img",
+        "boot",
+        "",
+    ]
+    return "\n".join(lines)
 
 
 def _range(value):

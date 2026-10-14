@@ -238,6 +238,29 @@ class UnattendedInstallTests(unittest.TestCase):
             self.assertEqual(rig.said[-1], "blunix: target disk S1 is not usable. Nothing applied.")
             self.assertEqual(rig.written, [])
 
+    def test_an_offered_address_still_needs_yes(self):
+        doc = personal_doc()
+        rig = self.rig(doc, ["yes"])
+        rig.hooks.cmdline = lambda: "boot=live blunix.build=ada.blnx.io blunix.access=full-speech"
+        self.assertEqual(rig.run(), 0)
+        self.assertIn("blunix: the build proxy offers ada.blnx.io. Say yes to use it.", rig.said)
+        self.assertNotIn("blunix: build hostname.", rig.said)
+        rig = self.rig(doc, ["no", "ada", "yes"])
+        rig.hooks.cmdline = lambda: "blunix.build=other.blnx.io"
+        self.assertEqual(rig.run(), 0)
+        self.assertIn("blunix: build hostname.", rig.said)
+        self.assertIn("blunix: hostname ada.blnx.io. Say yes to keep it.", rig.said)
+
+    def test_a_bad_offered_address_is_refused_not_used(self):
+        for cmdline in ("blunix.build=evil.example.com", "blunix.build=ada.blnx.io blunix.build=b.blnx.io",
+                        "blunix.build=https://ada.blnx.io/"):
+            with self.subTest(cmdline=cmdline):
+                rig = self.rig(personal_doc(), ["ada", "yes"])
+                rig.hooks.cmdline = lambda c=cmdline: c
+                self.assertEqual(rig.run(), 0)
+                self.assertIn("blunix: refused the offered build address.", rig.said)
+                self.assertFalse(any("offers" in line for line in rig.said))
+
     def test_without_install_the_questions_stay(self):
         doc = personal_doc()
         del doc["install"]

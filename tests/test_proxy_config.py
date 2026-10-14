@@ -214,6 +214,21 @@ class PersonalFieldTests(Lab):
         self.assertNotIn("AAAAC3", text)
 
 
+class PerMachineBootTests(Lab):
+    def test_generic_script_tries_the_mac_first_only_with_a_site(self):
+        self.assertNotIn("/v1/boot/", render_ipxe("192.0.2.5:8750"))
+        generic = render_ipxe("192.0.2.5:8750", per_machine=True)
+        self.assertIn("chain http://192.0.2.5:8750/v1/boot/${netX/mac:hexhyp}.ipxe || goto generic", generic)
+        self.assertNotIn("blunix.build=", generic)
+
+    def test_machine_script_offers_its_address_and_access(self):
+        s = self.site("defaults: {disk: cloud-vm, access: full-speech}\nmachines:\n" + machine(1, "    dhcp: true\n"))
+        text = render_ipxe("192.0.2.5:8750", s["boot"], s["machines"][0])
+        self.assertIn(" blunix.build=m1.blnx.io ", text)
+        self.assertIn(" blunix.access=full-speech ", text)
+        self.assertNotIn("/v1/boot/", text)
+
+
 class BootTests(Lab):
     def test_builtins(self):
         boot, sources = parse_boot(None)

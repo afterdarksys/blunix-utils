@@ -818,6 +818,18 @@ class ServeTests(unittest.TestCase):
         self.assertNotIn("blunix.media=", text)
         self.assertIn("initrd http://192.0.2.5:8750/media/initrd.img", text)
 
+    def test_per_machine_boot_script(self):
+        status, body, _ = self.get("/v1/boot.ipxe")
+        self.assertIn(b"/v1/boot/${netX/mac:hexhyp}.ipxe || goto generic", body)
+        for mac in ("00-50-56-aa-bb-01", "00-50-56-AA-BB-01", "005056aabb01"):
+            status, body, _ = self.get("/v1/boot/" + mac + ".ipxe")
+            self.assertEqual(status, 200, mac)
+            self.assertIn(b" blunix.build=ada.blnx.io ", body)
+        for path in ("/v1/boot/00-50-56-aa-bb-99.ipxe", "/v1/boot/not-a-mac.ipxe", "/v1/boot/.ipxe",
+                     "/v1/boot/00-50-56-aa-bb-01.ipxe/x", "/v1/boot/00-50-56-aa-bb-01"):
+            with self.subTest(path=path):
+                self.assertEqual(self.get(path)[0], 404)
+
     def test_boot_ipxe_never_trusts_the_host_header(self):
         self.server.advertise = None
         for host in ("10.1.1.1:8750", "evil.example:80", "evil_host:1"):

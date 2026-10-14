@@ -5,7 +5,12 @@
 # `blunix proxy serve`, into RAM. It passes when the installer asks its first
 # question on the serial console. Nothing is written anywhere but a temp dir.
 #
-#   image/test-netboot-qemu.sh [MEDIA_DIR]
+#   image/test-netboot-qemu.sh [MEDIA_DIR] [--prefill]
+#
+# With --prefill the proxy gets a site file that lists the VM's MAC as label
+# "qemu-test" with full speech: the VM must chain its per-machine script and the
+# installer must offer qemu-test.blnx.io and wait for yes. Exit 3 means the
+# proxy side worked but the media's installer is older than the offer.
 #
 # BIOS only: undionly.kpxe. MEDIA_DIR defaults to build/installer/media (vmlinuz,
 # initrd.img, blunix.squashfs). The loader comes from build/ipxe/
@@ -25,7 +30,13 @@ if [ -z "${BASH_VERSINFO:-}" ] || [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
 fi
 set -euo pipefail
 cd "$(dirname "$0")/.."
-MEDIA="$(cd "${1:-build/installer/media}" && pwd)"
+PREFILL=0
+ARGS=()
+for arg in "$@"; do
+  if [ "$arg" = --prefill ]; then PREFILL=1; else ARGS+=("$arg"); fi
+done
+MEDIA="$(cd "${ARGS[0]:-build/installer/media}" && pwd)"
+MAC=52:54:00:12:34:56
 PORT=8750
 TIMEOUT=300
 LOADER=undionly.kpxe
@@ -45,9 +56,24 @@ trap cleanup EXIT
 (cd "$MEDIA" && shasum -a 256 vmlinuz initrd.img blunix.squashfs 2>/dev/null || sha256sum vmlinuz initrd.img blunix.squashfs) > "$WORK/SHA256SUMS"
 cp "build/ipxe/$LOADER" "$WORK/$LOADER"
 
+SITE_ARGS=()
+EXPECT="blunix: build hostname."
+if [ "$PREFILL" = 1 ]; then
+  cat > "$WORK/site.yaml" <<SITE
+defaults: {disk: cloud-vm, access: full-speech}
+machines:
+  - mac: "$MAC"
+    label: qemu-test
+    hostname: qemu-test
+    dhcp: true
+SITE
+  SITE_ARGS=(--site "$WORK/site.yaml")
+  EXPECT="blunix: the build proxy offers qemu-test.blnx.io. Say yes to use it."
+fi
+
 # 10.0.2.2 is the host as QEMU's user network sees it.
 PYTHONPATH=lib python3 -m blunix proxy serve --listen "127.0.0.1:$PORT" --advertise "10.0.2.2:$PORT" \
-  --media "$MEDIA" --sums "$WORK/SHA256SUMS" > "$WORK/proxy.log" 2>&1 &
+  --media "$MEDIA" --sums "$WORK/SHA256SUMS" ${SITE_ARGS[@]+"${SITE_ARGS[@]}"} > "$WORK/proxy.log" 2>&1 &
 PROXY_PID=$!
 for _ in $(seq 1 60); do
   curl -sf -o /dev/null "http://127.0.0.1:$PORT/v1/boot.ipxe" && break
@@ -56,21 +82,30 @@ for _ in $(seq 1 60); do
 done
 
 qemu-system-x86_64 -accel "$ACCEL" -m 3072 -machine pc -display none \
-  -netdev "user,id=n0,tftp=$WORK,bootfile=$LOADER" -device e1000,netdev=n0 -boot n \
+  -netdev "user,id=n0,tftp=$WORK,bootfile=$LOADER" -device e1000,netdev=n0,mac="$MAC" -boot n \
   -serial "file:$WORK/serial.log" &
 QEMU_PID=$!
 
 result=FAIL
 for _ in $(seq 1 "$TIMEOUT"); do
-  if grep -aq "blunix: build hostname." "$WORK/serial.log" 2>/dev/null; then result=PASS; break; fi
+  if grep -aqF "$EXPECT" "$WORK/serial.log" 2>/dev/null; then result=PASS; break; fi
+  if [ "$PREFILL" = 1 ] && grep -aq "blunix: build hostname." "$WORK/serial.log" 2>/dev/null; then break; fi
   grep -aqE "netboot failed|Kernel panic" "$WORK/serial.log" 2>/dev/null && break
   kill -0 "$QEMU_PID" 2>/dev/null || break
   sleep 1
 done
 echo "--- proxy"
 grep -E "GET /(media|v1)" "$WORK/proxy.log" || true
+[ "$PREFILL" = 1 ] && { grep -aE "blunix.access=|blunix.build=" "$WORK/serial.log" | head -2 || true; }
 echo "--- serial"
 tr -d '\r' < "$WORK/serial.log" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' \
   | grep -aE "^iPXE [0-9]|^blunix|blunix:|tftp://|http://[^ ]*\.\.\.|Trying wget" || true
-echo "blunix: netboot bios: $result"
+if [ "$PREFILL" = 1 ] && [ "$result" = FAIL ] \
+   && grep -aq "blunix.access=full-speech blunix.build=qemu-test.blnx.io" "$WORK/serial.log" \
+   && grep -aq "blunix: build hostname." "$WORK/serial.log"; then
+  # The proxy did its part; the installer inside this media is older than the offer.
+  echo "blunix: netboot bios --prefill: PROXY-ONLY. The per-machine script reached the kernel, but this media's installer predates blunix.build; rebuild the installer media to test the offer."
+  exit 3
+fi
+echo "blunix: netboot bios$([ "$PREFILL" = 1 ] && echo ' --prefill'): $result"
 [ "$result" = PASS ]
