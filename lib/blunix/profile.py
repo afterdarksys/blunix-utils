@@ -5,7 +5,9 @@ loader as a node document, so oversized input, duplicate keys, aliases and
 key-material field names are refused before this module sees it. A profile
 carries no hostname, label or disk target; those are supplied when it is
 rendered, and the rendered document is checked by parse_node like any other
-node document. Nothing here encrypts, uploads, or applies.
+node document. A profile may carry `packages` (the allowlist in
+blunix.personal) but never `admin`, `install` or `target`, so a shared profile
+cannot hold anything personal. Nothing here encrypts, uploads, or applies.
 
 `distribution:` is reserved for a second host distribution. Only `debian` is
 accepted, and it is not copied into the rendered node document, so documents
@@ -20,6 +22,7 @@ import yaml
 
 from blunix.errors import BlunixError
 from blunix.node import check_node, coerce_doc, parse_node
+from blunix.personal import parse_packages
 from blunix.schema import (
     API_VERSION,
     check_label,
@@ -41,9 +44,13 @@ _PROFILE_KEYS = {
     "ai",
     "update",
     "sysexts",
+    "packages",
 }
 # The node fields a profile supplies, in node document order.
 _CARRIED = ("disk", "network", "access", "ai", "update", "sysexts")
+# Optional fields a profile may supply. Personal fields (admin, install,
+# target, hostname) are never part of a profile.
+_OPTIONAL = ("packages",)
 
 
 def parse_profile(doc):
@@ -60,6 +67,8 @@ def parse_profile(doc):
     for key in _CARRIED:
         if key not in doc:
             raise BlunixError("refused " + key)
+    if "packages" in doc:
+        parse_packages(doc["packages"])
     out = dict(doc)
     out["distribution"] = distribution
     return out
@@ -74,6 +83,9 @@ def render_node(profile, label, hostname, target=None):
     node = {"apiVersion": API_VERSION, "kind": "Node", "name": label, "hostname": hostname}
     for key in _CARRIED:
         node[key] = parsed[key]
+    for key in _OPTIONAL:
+        if key in parsed:
+            node[key] = parsed[key]
     if target is not None:
         node["target"] = target
     parse_node(node)

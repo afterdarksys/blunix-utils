@@ -222,10 +222,16 @@ def require_build_host(value):
 
 
 def expand_build_host(typed):
-    """A bare label becomes {label}.blnx.io. Anything else must already be a
-    build host."""
+    """A bare label becomes {label}.blnx.io. `https://HOST/` is accepted as the
+    card prints it. Anything else must already be a build host."""
     if not isinstance(typed, str):
         raise BlunixError("refused hostname")
+    if typed.startswith("https://"):
+        # The address as the install card prints it. Nothing else may follow
+        # the host: no credentials, port, path, query or fragment.
+        typed = typed[len("https://"):]
+        if typed.endswith("/"):
+            typed = typed[:-1]
     if "." not in typed:
         return check_label(typed) + _BUILD_SUFFIX
     return require_build_host(typed)

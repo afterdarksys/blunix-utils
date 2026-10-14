@@ -320,6 +320,7 @@ def _machine(raw, index, defaults, base_dir=None, cache=None):
     access = _name(access, index, "access")
     ai, sources["ai"] = _pick("ai", {}, {"_sources": {}}, profile, BUILTIN["ai"])
     update, sources["update"] = _pick("update", {}, {"_sources": {}}, profile, BUILTIN["update"])
+    packages, sources["packages"] = _pick("packages", {}, {"_sources": {}}, profile, [])
     update = dict(update)
     if "channel" in defaults:
         update["channel"] = defaults["channel"]
@@ -351,6 +352,7 @@ def _machine(raw, index, defaults, base_dir=None, cache=None):
         "access": access,
         "ai": ai,
         "update": update,
+        "packages": list(packages),
         "channel": update["channel"],
         "target": target,
         "match": match,
@@ -483,6 +485,8 @@ def render_node(machine):
     }
     if machine.get("target"):
         doc["target"] = machine["target"]
+    if machine.get("packages"):
+        doc["packages"] = list(machine["packages"])
     return yaml.safe_dump(doc, sort_keys=False).encode("utf-8")
 
 

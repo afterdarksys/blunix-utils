@@ -98,6 +98,18 @@ class ProfilePrecedenceTests(Lab):
         self.assertIn(b"dhcp: true", doc)
         validate_node(own, doc, MODELS)
 
+    def test_profile_packages_reach_the_node_and_explain(self):
+        shutil.copy(os.path.join(FIXTURES, "profile-packages.yaml"), os.path.join(self.dir, "profiles"))
+        s = self.site("defaults: {profile: profiles/profile-packages.yaml}\nmachines:\n"
+                      + machine(1) + machine(2, "    profile: profiles/server.json\n"))
+        tools, server = s["machines"]
+        self.assertEqual(tools["packages"], ["git", "tmux", "vim"])
+        self.assertEqual(tools["sources"]["packages"], "profile profiles/profile-packages.yaml")
+        self.assertIn(b"packages:\n- git\n- tmux\n- vim\n", render_node(tools))
+        validate_node(tools, render_node(tools), MODELS)
+        self.assertEqual((server["packages"], server["sources"]["packages"]), ([], "built-in"))
+        self.assertNotIn(b"packages", render_node(server))
+
     def test_a_static_profile_cannot_stand_in_for_a_machine_network(self):
         self.refused("defaults: {profile: profiles/fixed.yaml}\nmachines:\n" + machine(1),
                      "give exactly one of network or dhcp")
@@ -219,6 +231,7 @@ class ExplainTests(Lab):
             "  disk metal-luks (profile profiles/lab-speech.yaml)",
             "  access regular (defaults)",
             "  network dhcp (profile profiles/lab-speech.yaml)",
+            "  packages none (built-in)",
             "  match en*, eth* (built-in)",
             "  lease 2h (site boot)",
             "  console tty0, ttyS0,115200 (built-in)",

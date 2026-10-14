@@ -1,0 +1,20 @@
+apiVersion: blunix.dev/v1
+kind: Node
+name: ada
+hostname: ada-1
+disk: cloud-vm
+network: dhcp-any
+access: full-speech
+ai: default
+update:
+  url: https://updates.blunix.io/blunix
+  channel: stable
+sysexts: []
+target: S1
+install:
+  erase: true
+  reboot: false
+admin:
+  name: operator
+  sshPublicKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4"
+packages: [git, netcat]
