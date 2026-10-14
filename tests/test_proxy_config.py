@@ -169,6 +169,51 @@ class MatchTests(Lab):
                              + machine(1, "    dhcp: true\n    match: " + value + "\n"), "match")
 
 
+PUB = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4"
+
+
+class PersonalFieldTests(Lab):
+    def test_default_admin_and_machine_install_reach_the_node(self):
+        s = self.site(
+            "defaults: {disk: cloud-vm, access: regular, admin: {name: operator, sshPublicKey: \"" + PUB + "\"}}\n"
+            "machines:\n"
+            + machine(1, "    dhcp: true\n    target: S1\n    install: {erase: true, reboot: true}\n")
+            + machine(2, "    dhcp: true\n    admin: {name: lab, sshPublicKey: \"" + PUB + "\"}\n")
+        )
+        first, second = s["machines"]
+        self.assertEqual((first["admin"]["name"], first["sources"]["admin"]), ("operator", "defaults"))
+        self.assertEqual((second["admin"]["name"], second["sources"]["admin"]), ("lab", "machine"))
+        doc = render_node(first)
+        self.assertIn(b"install:\n  erase: true\n  reboot: true\n", doc)
+        self.assertIn(b"admin:\n  name: operator\n", doc)
+        parsed = validate_node(first, doc, MODELS)
+        self.assertEqual(parsed["install"], {"erase": True, "reboot": True})
+        self.assertIsNone(second["install"])
+        self.assertNotIn(b"install", render_node(second))
+
+    def test_refusals(self):
+        for extra, needle in (
+            ("    dhcp: true\n    install: {erase: true, reboot: false}\n", "refused install"),
+            ("    dhcp: true\n    admin: {name: root, sshPublicKey: \"" + PUB + "\"}\n", "refused admin"),
+            ("    dhcp: true\n    admin: {name: op, sshPublicKey: \"ssh-rsa AAAA\"}\n", "refused public key"),
+        ):
+            with self.subTest(extra=extra):
+                self.refused("defaults: {disk: cloud-vm, access: regular}\nmachines:\n" + machine(1, extra), needle)
+        self.refused("defaults: {disk: cloud-vm, access: regular, install: {erase: true, reboot: false}}\nmachines:\n"
+                     + machine(1, "    dhcp: true\n"), "unknown key in defaults")
+
+    def test_explain_names_the_admin_not_the_key(self):
+        path = self.write("site.yaml", "defaults: {disk: cloud-vm, access: regular, admin: {name: operator, sshPublicKey: \""
+                          + PUB + "\"}}\nmachines:\n" + machine(1, "    dhcp: true\n    target: S1\n    install: {erase: true, reboot: false}\n"))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            cmd_plan(path, {"explain": True})
+        text = out.getvalue()
+        self.assertIn("blunix proxy:   admin operator (defaults)", text)
+        self.assertIn("blunix proxy:   install: erase the target without asking, no reboot (machine)", text)
+        self.assertNotIn("AAAAC3", text)
+
+
 class BootTests(Lab):
     def test_builtins(self):
         boot, sources = parse_boot(None)

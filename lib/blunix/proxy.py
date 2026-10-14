@@ -180,6 +180,12 @@ def _explain(site):
         _say("  match " + match_text)
         if machine["target"]:
             _say("  target " + machine["target"] + " (machine)")
+        if machine.get("install"):
+            _say("  install: erase the target without asking, "
+                 + ("reboot" if machine["install"]["reboot"] else "no reboot") + " (machine)")
+        admin = machine.get("admin")
+        # The key is a public key, but a log line does not need it: the name is enough.
+        _say("  admin " + (admin["name"] if admin else "none") + " (" + src.get("admin", "none") + ")")
     boot, where = site["boot"], site["boot_sources"]
     _say("explain boot:")
     _say("  access " + boot["access"] + " (" + where["access"] + ")")

@@ -6,6 +6,16 @@
 #          ada.blnx.io must stop with "Nothing applied."
 #   full:  the ISO's kernel with blunix.proxy=10.0.2.2:8080, a local stand-in
 #          proxy serving a throwaway-key document, and a real install.
+# Apple's /bin/bash is 3.2. Re-run under bash 4 or newer when one is installed.
+if [ -z "${BASH_VERSINFO:-}" ] || [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
+  for candidate in /usr/local/bin/bash /opt/homebrew/bin/bash /opt/local/bin/bash; do
+    if [ -x "$candidate" ] && [ "$("$candidate" -c 'echo "${BASH_VERSINFO[0]}"')" -ge 4 ] 2>/dev/null; then
+      exec "$candidate" "$0" "$@"
+    fi
+  done
+  echo "blunix: this script needs bash 4 or newer, and /bin/bash on macOS is 3.2. Install one (brew install bash) and run it again." >&2
+  exit 2
+fi
 set -eu
 set -o pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)

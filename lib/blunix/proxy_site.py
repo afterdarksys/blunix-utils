@@ -31,6 +31,7 @@ import yaml
 
 from blunix.errors import BlunixError
 from blunix.network import check_match, parse_network
+from blunix.personal import parse_admin, parse_install
 from blunix.schema import (
     API_VERSION,
     UniqueKeyLoader,
@@ -58,9 +59,10 @@ _MAC_BARE = re.compile(r"[0-9a-f]{12}")
 _TARGET = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}")
 
 _TOP_KEYS = {"defaults", "machines", "boot"}
-_DEFAULT_KEYS = {"disk", "access", "channel", "dns", "match", "profile"}
+_DEFAULT_KEYS = {"disk", "access", "channel", "dns", "match", "profile", "admin"}
 _MACHINE_KEYS = {
     "mac", "label", "hostname", "network", "dhcp", "disk", "access", "target", "match", "profile",
+    "admin", "install",
 }
 _NET_KEYS = {"address", "gateway", "dns"}
 _BOOT_KEYS = {"access", "console", "args", "lease", "tftp_root", "tftp"}
@@ -247,6 +249,15 @@ def _profile_network(profile):
     return None
 
 
+def _personal(parse, value, index):
+    from blunix.errors import BlunixError as _Err
+
+    try:
+        return parse(value)
+    except _Err as exc:
+        _fail(index, str(exc))
+
+
 def _pick(name, raw, defaults, profile, builtin, own_profile=False):
     """Machine first. A machine's own profile beats the site defaults; the
     site's default profile does not. Then the built-in value."""
@@ -331,6 +342,17 @@ def _machine(raw, index, defaults, base_dir=None, cache=None):
     if target is not None:
         if not isinstance(target, str) or not _TARGET.fullmatch(target):
             _fail(index, "refused target")
+    admin = None
+    if "admin" in raw:
+        admin, sources["admin"] = _personal(parse_admin, raw["admin"], index), "machine"
+    elif defaults.get("admin") is not None:
+        admin, sources["admin"] = defaults["admin"], "defaults"
+    else:
+        sources["admin"] = "none"
+    install = None
+    if "install" in raw:
+        # Erase permission names one disk, so it is never a site default.
+        install = _personal(lambda v: parse_install(v, target), raw["install"], index)
     has_net = "network" in raw
     has_dhcp = "dhcp" in raw
     if has_net and has_dhcp:
@@ -360,6 +382,8 @@ def _machine(raw, index, defaults, base_dir=None, cache=None):
         "target": target,
         "match": match,
         "profile": profile[1][len("profile "):] if profile is not None else None,
+        "admin": admin,
+        "install": install,
         "sources": sources,
     }
     if not has_net and not has_dhcp:
@@ -422,6 +446,8 @@ def parse_site(data, base_dir=None):
             defaults["_sources"][key] = "defaults"
     if "dns" in raw_defaults:
         defaults["dns"] = _dns(raw_defaults["dns"], None)
+    if "admin" in raw_defaults:
+        defaults["admin"] = _personal(parse_admin, raw_defaults["admin"], None)
     if "match" in raw_defaults:
         defaults["match"] = _match(raw_defaults["match"], None)
         defaults["_sources"]["match"] = "defaults"
@@ -490,6 +516,10 @@ def render_node(machine):
         doc["target"] = machine["target"]
     if machine.get("packages"):
         doc["packages"] = list(machine["packages"])
+    if machine.get("install"):
+        doc["install"] = dict(machine["install"])
+    if machine.get("admin"):
+        doc["admin"] = dict(machine["admin"])
     return yaml.safe_dump(doc, sort_keys=False).encode("utf-8")
 
 
