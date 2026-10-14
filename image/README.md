@@ -10,6 +10,8 @@ Build scripts for the Blunix spike. Each one runs itself inside `docker run --pr
 | `BLUNIX_RELEASE_VERSION=v0.1.0 build-installer.sh --release` | The same, packing `build/blunix-release.raw`. It mounts that disk read-only and runs the release scan first, so a fixture disk cannot become a release. |
 | `boot-installer-test.sh [uefi\|bios]` | Boots the ISO headless in QEMU against a blank disk and answers the first prompts over serial. Log: `build/installer/serial.log`. |
 | `run-unit-tests.sh` | The unit tests, in Debian 13 with `age` and `zstd`. |
+| `ipxe/build-ipxe.sh` | `build/ipxe/undionly.kpxe` (BIOS PXE) and `build/ipxe/ipxe.efi` (UEFI), from iPXE v2.0.0 at a checked commit, with HTTPS on and `ipxe/embed.ipxe` built in. In Docker. |
+| `test-netboot-qemu.sh [MEDIA_DIR]` | Boots a diskless BIOS VM from the network: only `undionly.kpxe` comes over TFTP, then the boot script, kernel, initrd and the whole image come over http from `blunix proxy serve` into RAM. Passes when the installer asks its first question. |
 | `scan-raw-explain.py locate IMAGE` / `blocks FILE [--member PATH]` | Explains a refused raw scan: each hit's offset, kind, and the file (or free space) that holds it; and every PEM private-key block in a file with its SHA-256 and allowlist state. Prints no key bytes. See "When the raw scan refuses". |
 | `gpl-sources.py VERSION STATUS...` | `SOURCES.md` for a release: every Debian source package and exact version from the artifacts' dpkg status files, with snapshot.debian.org links and the written offer. Attach it to every release. |
 
@@ -52,6 +54,18 @@ qemu-system-x86_64 -m 2048 -machine q35 -cdrom build/blunix-installer.iso \
 ### iPXE netboot
 
 `build/installer/media/` holds `vmlinuz`, `initrd.img`, `blunix.squashfs`, and `blunix.ipxe`. Serve that directory as `/media/` on any HTTP server, or let `blunix proxy serve` do it, and chain `image/ipxe/blunix.ipxe` with `${proxy}` set to that server's `HOST:PORT`. The kernel line carries `blunix.proxy=${proxy}`, so the document is fetched through the proxy at `http://{proxy}/v1/build/{host}`. That path is safe only because age is authenticated: a swapped body does not decrypt. The image to install is inside the squashfs, so netboot needs no stick. live-boot copies the squashfs into RAM, so give the machine 2 GiB or more.
+
+How a machine gets there, with as little TFTP as possible:
+
+- **BIOS PXE.** The firmware can only fetch its first file over TFTP, so it gets `undionly.kpxe` (about 95 KB) and nothing else that way. That iPXE then loads `/v1/boot.ipxe`, the kernel, the initrd and the whole squashfs over http.
+- **UEFI HTTP Boot.** The firmware fetches `ipxe.efi` over http from `/media/ipxe.efi`; no TFTP at all. List `ipxe.efi` in the media `SHA256SUMS` and the proxy serves it.
+- **iPXE already present** (a NIC ROM, a host's custom iPXE URL, or a USB iPXE): it chains `/v1/boot.ipxe` over http directly.
+
+`blunix proxy dnsmasq` writes all three. With `boot: {tftp: false}` in the site file it writes the http-only ones and says which machines then cannot start.
+
+The loader's built-in script (`ipxe/embed.ipxe`) gets an address and chains the boot script the DHCP server names. When the DHCP server does not know iPXE and names the loader itself, it chains `http://NEXT-SERVER:8750/v1/boot.ipxe`.
+
+`test-netboot-qemu.sh` proves the BIOS path end to end. A UEFI run is not there yet: OVMF under QEMU on macOS went to the EFI shell without trying the network.
 
 ### Raw image for VMware, QEMU, or a cloud
 

@@ -1,0 +1,17 @@
+#!ipxe
+# Embedded in blunix-ipxe. Get an address, then load the boot script over HTTP.
+# A DHCP server that knows iPXE (blunix proxy dnsmasq) hands back an http:// boot
+# script as the filename; any other DHCP server hands back this loader's own
+# name, and then the build proxy is assumed on the next-server at port 8750.
+echo blunix: netboot loader
+dhcp || goto failed
+iseq ${filename} undionly.kpxe && goto proxy ||
+iseq ${filename} ipxe.efi && goto proxy ||
+isset ${filename} || goto proxy
+chain ${filename} || goto failed
+:proxy
+chain http://${next-server}:8750/v1/boot.ipxe || goto failed
+:failed
+echo blunix: netboot failed. Check the network and the build proxy, then restart.
+sleep 30
+reboot

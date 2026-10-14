@@ -970,6 +970,19 @@ class MediaSumsTests(unittest.TestCase):
                 handle.write(hashlib.sha256(data).hexdigest() + " *" + name + "\n")
         self.assertEqual(sorted(self._serve(sums=sums).media_ids), sorted(MEDIA))
 
+    def test_loaders_are_served_only_when_listed(self):
+        _media(self.media)
+        with open(os.path.join(self.media, "ipxe.efi"), "wb") as handle:
+            handle.write(b"efi")
+        self.assertNotIn("ipxe.efi", self._serve().media_ids)
+        with open(os.path.join(self.media, "SHA256SUMS"), "a") as handle:
+            handle.write(hashlib.sha256(b"efi").hexdigest() + "  ipxe.efi\n")
+        self.assertIn("ipxe.efi", self._serve().media_ids)
+        with open(os.path.join(self.media, "ipxe.efi"), "ab") as handle:
+            handle.write(b"tampered")
+        with self.assertRaises(BlunixError):
+            self._serve()
+
     def test_mismatch_refuses(self):
         _media(self.media)
         with open(os.path.join(self.media, "blunix.squashfs"), "ab") as handle:
@@ -1045,12 +1058,27 @@ class DnsmasqTests(unittest.TestCase):
         self.assertIn("dhcp-option=tag:blx-ada,option:router,192.0.2.1", lines)
         self.assertIn("dhcp-range=192.0.2.0,static,255.255.255.0,12h", lines)
         self.assertIn("dhcp-boot=tag:known,tag:ipxe,http://192.0.2.5:8750/v1/boot.ipxe", lines)
-        self.assertIn("dhcp-boot=tag:known,tag:!ipxe,tag:efi64,ipxe.efi", lines)
-        self.assertIn("dhcp-boot=tag:known,tag:!ipxe,tag:!efi64,undionly.kpxe", lines)
+        self.assertIn("dhcp-boot=tag:known,tag:!ipxe,tag:!efihttp,tag:efi64,ipxe.efi", lines)
+        self.assertIn("dhcp-boot=tag:known,tag:!ipxe,tag:!efihttp,tag:!efi64,undionly.kpxe", lines)
+        # UEFI HTTP Boot gets the loader over http, never TFTP.
+        self.assertIn("dhcp-match=set:efihttp,option:client-arch,16", lines)
+        self.assertIn("dhcp-option-force=tag:efihttp,60,HTTPClient", lines)
+        self.assertIn("dhcp-boot=tag:known,tag:!ipxe,tag:efihttp,http://192.0.2.5:8750/media/ipxe.efi", lines)
         self.assertIn("interface=eth1", lines)
         ranged = render_dnsmasq(site, "192.0.2.5:8750", dhcp_range="192.0.2.100,192.0.2.150")
         self.assertIn("dhcp-range=192.0.2.100,192.0.2.150,12h", ranged.splitlines())
         self.assertIn("blunix.proxy=192.0.2.5:8750", render_ipxe("192.0.2.5:8750"))
+
+    def test_tftp_off_renders_http_only(self):
+        site = parse_site(SITE.replace(b"machines:", b"boot: {tftp: false}\nmachines:", 1))
+        lines = render_dnsmasq(site, "192.0.2.5:8750").splitlines()
+        self.assertFalse(any(line.startswith(("enable-tftp", "tftp-root", "tftp-secure")) for line in lines))
+        self.assertFalse(any(line.endswith((",undionly.kpxe", ",ipxe.efi")) and "http://" not in line for line in lines))
+        self.assertIn("dhcp-boot=tag:known,tag:ipxe,http://192.0.2.5:8750/v1/boot.ipxe", lines)
+        self.assertIn("dhcp-boot=tag:known,tag:!ipxe,tag:efihttp,http://192.0.2.5:8750/media/ipxe.efi", lines)
+        self.assertTrue(any("TFTP is off" in line for line in lines))
+        with self.assertRaises(BlunixError):
+            parse_site(SITE.replace(b"machines:", b"boot: {tftp: maybe}\nmachines:", 1))
 
     def test_refusals(self):
         site = parse_site(SITE)

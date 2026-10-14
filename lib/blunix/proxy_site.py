@@ -63,7 +63,7 @@ _MACHINE_KEYS = {
     "mac", "label", "hostname", "network", "dhcp", "disk", "access", "target", "match", "profile",
 }
 _NET_KEYS = {"address", "gateway", "dns"}
-_BOOT_KEYS = {"access", "console", "args", "lease", "tftp_root"}
+_BOOT_KEYS = {"access", "console", "args", "lease", "tftp_root", "tftp"}
 _PROFILE_FILE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,200}\.(ya?ml|json)")
 _CONSOLE = re.compile(r"tty[0-9]{1,2}|ttyS[0-9]{1,2}(,[0-9]{4,7}(n8)?)?")
 _ARG = re.compile(r"[a-z][a-z0-9_.-]{0,40}(=[A-Za-z0-9_.,:/+-]{1,80})?")
@@ -84,6 +84,7 @@ BOOT_BUILTIN = {
     "args": [],
     "lease": "12h",
     "tftp_root": "/srv/tftp",
+    "tftp": True,
 }
 
 
@@ -287,6 +288,8 @@ def parse_boot(raw):
             _fail(None, "boot arg " + arg.split("=", 1)[0] + " is set by the proxy")
     if not isinstance(boot["lease"], str) or not _LEASE.fullmatch(boot["lease"]):
         _fail(None, "refused boot lease")
+    if not isinstance(boot["tftp"], bool):
+        _fail(None, "boot tftp must be true or false")
     root = boot["tftp_root"]
     if not isinstance(root, str) or not _TFTP_ROOT.fullmatch(root) or ".." in root:
         _fail(None, "refused boot tftp_root")

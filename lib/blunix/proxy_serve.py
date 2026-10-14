@@ -41,7 +41,7 @@ from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from blunix.errors import BlunixError
-from blunix.proxy_boot import MEDIA_FILES, render_ipxe
+from blunix.proxy_boot import LOADER_FILES, MEDIA_FILES, render_ipxe
 from blunix.proxy_config import parse_hostport, tls_context
 from blunix.proxy_site import build_host_kind, normalize_mac
 
@@ -227,7 +227,9 @@ def verify_media(root, sums_path=None):
     """Check each media file against SHA256SUMS. Returns {name: file identity}."""
     sums = _read_sums(sums_path or os.path.join(root, "SHA256SUMS"))
     verified = {}
-    for name in MEDIA_FILES:
+    # Loaders are optional: served only when SHA256SUMS lists them.
+    names = list(MEDIA_FILES) + [name for name in LOADER_FILES if name in sums]
+    for name in names:
         want = sums.get(name)
         if want is None:
             raise BlunixError("media: SHA256SUMS has no entry for " + name + "; refusing to start")
@@ -388,7 +390,7 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _media(self, name):
         root = self.server.media
-        if root is None or name not in MEDIA_FILES:
+        if root is None or name not in self.server.media_ids:
             self._send(404)
             return
         path = os.path.join(root, name)
