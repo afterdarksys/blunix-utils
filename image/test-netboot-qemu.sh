@@ -5,19 +5,23 @@
 # `blunix proxy serve`, into RAM. It passes when the installer asks its first
 # question on the serial console. Nothing is written anywhere but a temp dir.
 #
-#   image/test-netboot-qemu.sh [MEDIA_DIR] [--prefill]
+#   image/test-netboot-qemu.sh [MEDIA_DIR] [--prefill] [--uefi-disk]
+#
+# --uefi-disk boots ipxe.efi under UEFI (QEMU's edk2) from a small FAT disk as
+# EFI/BOOT/BOOTX64.EFI, then the same http chain. It proves the UEFI loader and
+# everything after it; it skips firmware PXE, which OVMF in QEMU did not offer
+# here (macOS and a Debian container both went to the EFI shell).
 #
 # With --prefill the proxy gets a site file that lists the VM's MAC as label
 # "qemu-test" with full speech: the VM must chain its per-machine script and the
 # installer must offer qemu-test.blnx.io and wait for yes. Exit 3 means the
 # proxy side worked but the media's installer is older than the offer.
 #
-# BIOS only: undionly.kpxe. MEDIA_DIR defaults to build/installer/media (vmlinuz,
+# Default BIOS: undionly.kpxe over TFTP. MEDIA_DIR defaults to build/installer/media (vmlinuz,
 # initrd.img, blunix.squashfs). The loader comes from build/ipxe/
 # (image/ipxe/build-ipxe.sh). Needs qemu-system-x86_64 and bash 4 or newer. Port
 # 8750 must be free: the loader falls back to the next-server on that port.
-# A UEFI run (ipxe.efi) is not here yet: OVMF under QEMU on macOS went to the EFI
-# shell without trying the network, with both the QEMU and the Debian firmware.
+
 # Apple's /bin/bash is 3.2. Re-run under bash 4 or newer when one is installed.
 if [ -z "${BASH_VERSINFO:-}" ] || [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
   for candidate in /usr/local/bin/bash /opt/homebrew/bin/bash /opt/local/bin/bash; do
@@ -31,15 +35,21 @@ fi
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PREFILL=0
+UEFI=0
 ARGS=()
 for arg in "$@"; do
-  if [ "$arg" = --prefill ]; then PREFILL=1; else ARGS+=("$arg"); fi
+  case "$arg" in
+    --prefill) PREFILL=1 ;;
+    --uefi-disk) UEFI=1 ;;
+    *) ARGS+=("$arg") ;;
+  esac
 done
 MEDIA="$(cd "${ARGS[0]:-build/installer/media}" && pwd)"
 MAC=52:54:00:12:34:56
 PORT=8750
 TIMEOUT=300
 LOADER=undionly.kpxe
+[ "$UEFI" = 1 ] && LOADER=ipxe.efi
 for f in vmlinuz initrd.img blunix.squashfs; do
   [ -f "$MEDIA/$f" ] || { echo "blunix: $MEDIA/$f is missing; build the installer first"; exit 2; }
 done
@@ -81,8 +91,19 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 
-qemu-system-x86_64 -accel "$ACCEL" -m 3072 -machine pc -display none \
-  -netdev "user,id=n0,tftp=$WORK,bootfile=$LOADER" -device e1000,netdev=n0,mac="$MAC" -boot n \
+if [ "$UEFI" = 1 ]; then
+  code="$(dirname "$(dirname "$(command -v qemu-system-x86_64)")")/share/qemu/edk2-x86_64-code.fd"
+  [ -f "$code" ] || { echo "blunix: no edk2 firmware at $code"; exit 2; }
+  mkdir -p "$WORK/esp/EFI/BOOT"
+  cp "build/ipxe/ipxe.efi" "$WORK/esp/EFI/BOOT/BOOTX64.EFI"
+  MACHINE_ARGS=(-machine q35 -drive "if=pflash,format=raw,readonly=on,file=$code"
+    -drive "file=fat:rw:$WORK/esp,format=raw,if=none,id=esp" -device ide-hd,drive=esp,bootindex=0
+    -device virtio-net-pci,netdev=n0,mac="$MAC")
+else
+  MACHINE_ARGS=(-machine pc -device e1000,netdev=n0,mac="$MAC" -boot n)
+fi
+qemu-system-x86_64 -accel "$ACCEL" -m 3072 -display none \
+  -netdev "user,id=n0,tftp=$WORK,bootfile=$LOADER" "${MACHINE_ARGS[@]}" \
   -serial "file:$WORK/serial.log" &
 QEMU_PID=$!
 
@@ -107,5 +128,5 @@ if [ "$PREFILL" = 1 ] && [ "$result" = FAIL ] \
   echo "blunix: netboot bios --prefill: PROXY-ONLY. The per-machine script reached the kernel, but this media's installer predates blunix.build; rebuild the installer media to test the offer."
   exit 3
 fi
-echo "blunix: netboot bios$([ "$PREFILL" = 1 ] && echo ' --prefill'): $result"
+echo "blunix: netboot $([ "$UEFI" = 1 ] && echo uefi-disk || echo bios)$([ "$PREFILL" = 1 ] && echo ' --prefill'): $result"
 [ "$result" = PASS ]
